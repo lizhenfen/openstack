@@ -1,0 +1,99 @@
+安装依赖：
+	1.SVN library respository
+	  创建svn源
+		name=Wandisco SVN Repo
+		baseurl=http://opensource.wandisco.com/centos/7/svn-1.9/RPMS/x86_64/
+		enable=1
+		gpgcheck=0
+		yum groupinstall "Development Tools"
+	2. 下载Maven,并加入PATH路径
+		http://mirror.nexcess.net/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz
+		tar -xzvf apache-maven-3.3.3-bin.tar.gz -C /opt
+		ln -s /opt/apache-maven-3.3.3/bin/mvn /usr/bin/mvn
+	3. 安装别的依赖
+		 yum install -y python-devel java-1.7.0-openjdk-devel zlib-devel libcurl-devel openssl-devel\
+		 cyrus-sasl-devel cyrus-sasl-md5 apr-devel subversion-devel
+安装Mesos:
+	下载Mesos: http://mesos.apache.org/downloads/ 
+	解压： tar xzvf 	&& cd 
+	创建build文件夹： mkdir build  #可选，推荐，避免在slave上编译安装
+	编译安装： cd build && ../configure && make && make check  && make install 
+	命令：
+		mesos-local.sh  #运行一个内存集群和单进程
+		mesos-tests.sh  #运行测试
+		mesos.sh        #运行mesos命令的脚步，不加参数显示所有的可用命令
+		gdb-mesos-* 	#使用gdb在debug模式中运行corresponding进程
+		lldb-mesos-*	#使用lldb在debug模式中运行corresponding进程
+		valgrind-mesos-*#运行corresponding valgrind 架构
+		mesos-daemon.sh #以守护进程运行mesos
+		mesos-start-cluster.sh 	#运行集群在节点的[install-prefix]/var/mesos/deploy/[masters|salves]
+		mesos-stop-cluster.sh   #停止集群在节点的[install-prefix]/var/mesos/deploy/[masters|salves]
+		mesos-start-masters.sh  #运行mesos masters 在msters 文件的列表
+		mesos-sotp-masters.sh
+		mesos-start-slaves.sh
+		mesos-stop-slaves.sh 
+		使用mesos-local 在单进程中启动mster和slave
+	启动：
+		创建mesos日志目录：
+			mkdir -p /var/lib/mesos 
+			chown `whoami` /var/lib/mesos 
+		启动mesos,指定目录：
+			mesos-master --work_dir=/var/lib/mesos 
+			输出显示： 版本，master使用的各种配置，集群的master ID, slave指定master的IP或HOSTNAME
+			通过 --master选项连接。例： mesos-slave --master=master:5050
+	测试用例： 
+		支持C++, Java, Python
+		C++: ~/mesos/build/src$ ./test-framewwork --master=master:5050
+		Java:~/mesos/build/src/example/java$ ./test-framewwork --master=master:5050
+		Python:~/mesos/build/src/example/python$ ./test-framewwork --master=master:5050
+	Web接口：
+		http://mesos_ip:port
+	多节点集群：
+		可以手动在每个mesos-slave节点启动，但是这容易出错，且工作量大
+		mesos提供了自动增加集群的设置，依靠SSH
+		确保每个节点都安装好依赖
+		生成ssh-key:
+			ssh-keygen -f ~/.ssh/id_rsa -P ""  #自动生成秘钥
+			ssh-copy-id ~/.ssh/id_rsa.pub usename@remote_host	#拷贝本机公钥到远程主机
+		复制mesos文件到远程主机：
+			scp -R build slave1:[index-prefix]  #复制文件到远程主机
+		vi [install-prefix]/var/mesos/deploy/masters
+			master 
+		vi [install-prefix]/var/mesos/deploy/slaves
+			slave1
+			slave2
+		启动集群：
+			mesos-start-cluster.sh
+在虚拟机vagrant上安装：
+	下载vagrant: m https://www.vagrantup.com/downloads.html
+	安装插件：vagrant plugin install vagrant-omnibus vagrant-berkshelf vagrant-hosts vagrant-cachier vagrant-aws
+	下载配置： https://github.com/everpeace/vagrant-mesos/
+	启动： cd /mesos.git  
+	单节点： cd standlone ； vagrant up
+	多节点： cd multinode ; vagrant up 
+	登陆： vagrant ssh [master|salve]  #登陆到master主机
+	关闭虚拟机： vagrant halt 
+	摧毁： vagrant destroy
+运行zookeeper:
+	下载： http://mirrors.cnnic.cn/apache/zookeeper/
+	
+运行服务(marthon)：
+	wget http://downloads.mesosphere.io/marathon/v0.10.0/marathon-0.10.0.tgz
+	启动： bin/start --master 10.239.21.100:5050 --zk zk://10.239.21.100:2181/marathon
+	访问： 192.168.27.253:8080
+  Event bus:
+	捕捉Marthon的所有世界，API请求，扩展事件，可以被使用负载均衡，监控，别的外部系统和M
+	--event_subscriber <subscrition>  #支持event bus
+    --constraint #限制
+		UNIQUE:唯一字段
+		CLUSTER:
+		GROUP_BY：
+		LIKE: 过滤匹配正则过滤主机
+		UNLIKE: 过滤不匹配正则的主机
+	--artifact_store: 指定存储的位置
+Mesos-DNS:
+	只支持SRV, A, ANY记录，不支持其他记录
+Mesos资源管理：
+	 --resources  #管理资源使用
+		--resources='cpus:30;mem:122880;disk:921600;ports:[21000-29000];bugs:{a,b,c}'
+		--attributes='rack:rack-2;datacenter:europe;os:ubuntuv14.4'

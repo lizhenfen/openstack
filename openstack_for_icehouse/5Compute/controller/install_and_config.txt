@@ -1,0 +1,76 @@
+安装：
+	yum install openstack-nova-api \    #接受和响应compute client发送的API
+				openstack-nova-cert \   #管理x509证书
+				openstack-nova-conductor \ #compute节点和 数据库之间的代理
+				openstack-nova-console \    #控制novncproxy 代理的认证
+				openstack-nova-novncproxy \ #访问 compute节点上的实例的代理
+				openstack-nova-scheduler \  #确认虚拟机运行在哪个compute节点
+				python-novalcient
+配置：
+	/etc/nova/nova.conf
+	#配置数据库
+	[database]
+	connection=mysql://nova:nova@controller/nova
+	# 创建 用户
+	keystone user-create --name=nova --pass=nova
+	# 绑定用户 租户 和角色
+	keystone user-role-add --user=nova --tenant=service --role=admin
+	# 创建 服务
+	keystone service-create --name=nova --type=compute --description="Openstack Compute"
+	# 创建访问点 接口
+	keystone endpoint-create --service=nova \
+							 --publicurl=http://controller:8774/v2/%\(tenant_id\)s
+							 --adminurl=http://controller:8774/v2/%\(tenant_id\)s
+							 --internalurl=http://controller:8774/v2/%\(tenant_id\)s
+	#创建数据库
+	create database nova;
+	grant all privileges on nova.* to 'nova'@'localhost' identified by 'nova';
+	grant all privileges on nova.* to 'nova'@'%' identified by 'nova';
+	
+	# 同步数据 到数据库
+	nova-manage db sync 
+	# 提示 检查下数据库内是否有表 mysql -uroot -popenstack -e "use nova;show tables;"
+	
+	#配置消息队列服务
+	[DEFAULT]
+	rpc_backend=qpid     #默认rabbit,通信后端协议
+	qpid_hostname=controller
+	#配置认证服务
+	auth_strategy=keystone    # 设置 认证消息类型
+	[keystone_authtoken]
+	auth_host=controller
+	auth_port=35357
+	auth_protocol=http
+	auth_uri=http://controller:5000
+	admin_user=nova
+	admin_password=nova
+	admin_tenant_name=service
+	# 配置 VNC服务
+	my_ip=   							  #此处地址为 管理端口的地址
+	vncserver_listen=					  # IP 同上
+	vncserver_proxyclient_address=		  # IP 同上
+	
+#rabbitmq消息配置：
+	rpc_backend=rabbit
+	rabbit_host=controller
+	rabbit_userid=root
+	rabbit_password=openstack
+启动：
+	/etc/init.d/openstack-nova-api start  
+	/etc/init.d/openstack-nova-api status
+	/etc/init.d/openstack-nova-cert start
+	/etc/init.d/openstack-nova-cert status
+	/etc/init.d/openstack-nova-scheduler start
+	/etc/init.d/openstack-nova-scheduler status
+	/etc/init.d/openstack-nova-conductor start
+	/etc/init.d/openstack-nova-conductor status
+	/etc/init.d/openstack-nova-console start
+	/etc/init.d/openstack-nova-console status
+	/etc/init.d/openstack-nova-consoleauth start
+	/etc/init.d/openstack-nova-consoleauth status
+开机启动：
+	
+验证：
+	nova image-list   #结果：显示 已存在的 镜像
+	检查服务：
+		nova-manage service list

@@ -1,0 +1,90 @@
+描述：
+	提供 云应用程序的 基本模板，通过允许API运行云
+组件：
+	heat command-line client： REST API
+	heat-api： 提供本地 REST API，处理API请求 并发送他们到 heat-engine 通过RPC
+	heat-api-cfn: 提供AWS 的API
+	heat-engine： 编排模板 并且 提供事件返回给API消费者
+
+安装：
+	yum install openstack-heat-api openstack-heat-engine  openstack-heat-api-cfn
+创建数据库：
+	mysql -uroot -popenstack
+	CREATE DATABASE heat;
+	GRANT ALL PRIVILEGES on heat.* TO 'heat'@'localhost' identified by 'openstack';
+	GRANT ALL PRIVILEGES on heat.* TO 'heat'@'%' identified by 'openstack';
+	su -s /bin/bash "heat-manage db_sync" heat 
+连接数据库：
+	[database]
+	connection=mysql://heat:openstack@controller/heat
+检测：
+	MariaDB [heat]> show tables;
+	+---------------------+
+	| Tables_in_heat      |
+	+---------------------+
+	| event               |
+	| migrate_version     |
+	| raw_template        |
+	| resource            |
+	| resource_data       |
+	| software_config     |
+	| software_deployment |
+	| stack               |
+	| stack_lock          |
+	| user_creds          |
+	| watch_data          |
+	| watch_rule          |
+	+---------------------+
+	创建服务：
+keystone user-create --name=heat --pass=openstack 
+keystone user-role-add --user=heat --tenant=service --role=admin
+配置文件：
+    #消息队列	
+	[DEFAULT]
+	...
+	rpc_backend=heat.openstack.common.rpc.impl_kombu    #启用rabbitmq
+	rabbit_host=controller
+	rabbit_userid=root
+	rabbit_password=openstack
+    #keystone认证：
+	[keystone_authtoken]
+	auth_uri=http://controller:5000/v2.0
+	auth_host=controller
+	auth_port=35357
+	auth_protocol=http
+	admin_user=heat
+	admin_password=openstack
+	admin_tenant_name=service
+	[ec2authtoken]
+	auth_uri=http://controller:5000/v2.0
+注册服务和 端点列表：
+	keystone service-create --name=heat --type=orchestration --description="Orchestration"
+	keystone endpoint-create \
+  --service-id=$(keystone service-list | awk '/ orchestration / {print $2}') \
+  --publicurl=http://controller:8004/v1/%\(tenant_id\)s \
+  --internalurl=http://controller:8004/v1/%\(tenant_id\)s \
+  --adminurl=http://controller:8004/v1/%\(tenant_id\)s
+-------------------------------------------------------------------------------------------------
+   keystone service-create --name=heat-cfn --type=cloudformation --description="Orchestration CloudFormation"
+   keystone endpoint-create \
+  --service-id=$(keystone service-list | awk '/ cloudformation / {print $2}') \
+  --publicurl=http://controller:8000/v1 \
+  --internalurl=http://controller:8000/v1 \
+  --adminurl=http://controller:8000/v1
+增加 创建模板时使用的用户角色：
+	keystone role-create --name heat_stack_user
+配置metadata和waitcondition(等待状态)服务的URL
+	heat_metadata_server_url=http://controller:8000
+	heat_waitcondition_server_url=http://controller:8000/v1/waitcondition
+启动：
+	/etc/init.d/openstack-heat-api start 
+	/etc/init.d/openstack-heat-api status
+	/etc/init.d/openstack-heat-api-cfn start
+	/etc/init.d/openstack-heat-api-cfn status 
+	/etc/init.d/openstack-heat-engine start 
+	/etc/init.d/openstack-heat-engine status
+开机启动：
+	echo "#startup openstack-heat while host" >> /etc/rc.d/rc.local 
+	echo "/etc/init.d/openstack-heat-api start" >> /etc/rc.d/rc.local
+	echo "/etc/init.d/openstack-heat-api-cfn start" >> /etc/rc.d/rc.local
+	echo "/etc/init.d/openstack-heat-engine start" >> /etc/rc.d/rc.local

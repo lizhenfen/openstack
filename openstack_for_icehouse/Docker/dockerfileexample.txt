@@ -1,0 +1,16 @@
+####################
+#Docker for Apache##
+####################
+FROM ubuntu:14.04
+#Author
+MAINTAINER lizhen <743564797@qq.com>
+#Install Apache2
+RUN apt-get update &&\
+apt-get install -y apache2 &&\
+apt-get clean
+#set apache2 log directory Path
+ENV APACHE_LOG_DIR /var/log/apache2 
+#Launch apache2 server in the foreground
+ENTRYPOINT ["/usr/sbin/apache2ctl","-D","FOREGROUND"]  
+#export 80 port
+EXPOSE 80

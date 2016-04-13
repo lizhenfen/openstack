@@ -1,0 +1,14 @@
+创建云硬盘时，一直处于creating或者deleteing状态 ?
+原因： volume开启了api和scheduler口，导致错误
+
+cinder.api.middleware.fault RemoteError: Remote error: ISCSITargetCreateFailed Failed to create iscsi target for volume
+
+
+Ensure that configfs is mounted at /sys/kernel/config
+ Could not create RTSRoot in configFS
+ oslo.messaging.rpc.dispatcher oslo.messaging.rpc.dispatcher ISCSITargetCreateFailed: Failed to create iscsi target for volume 
+原因： 在cinder-volumes主机上开始iscsi驱动；
+	/etc/cinder/cinder.conf
+	iser_ip_address=
+	iscsi_ip_address=
+	iscsi_helper=tgtadm 

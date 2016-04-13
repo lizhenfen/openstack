@@ -1,0 +1,8 @@
+可以创建实例，依然提示错误：
+	Virtual Interface creation failed
+原因：
+	Icehouse 版本的 BUG， 部分已经修复
+解决：
+	## compute 节点上 /etc/nova/nova.conf
+	vif_plugging_timeout = 10
+	vif_plugging_is_fatal = False 

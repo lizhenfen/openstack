@@ -1,0 +1,16 @@
+完成 初始化;
+	ln -s /etc/neutron/plugibns/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+	## 此处为 openstack 软件 的 一个小BUG 需要手动更改
+	cp /etc/init.d/neutron-openvswitch-agent /etc/init.d/neutron-openvswitch-agent.orig
+	sed -i 's,plugins/openvswitch/ovs_neutron_plugin.ini,plugin.ini,g' /etc/init.d/neutron-openvswitch-agent
+	
+启动服务：
+	service neutron-openvswitch-agent start
+	service neutron-l3-agent start
+	service neutron-dhcp-agent start
+	service neutron-metadata-agent start
+	
+	chkconfig neutron-openvswitch-agent on
+	chkconfig neutron-l3-agent on
+	chkconfig neutron-dhcp-agent on
+	chkconfig neutron-metadata-agent on

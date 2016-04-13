@@ -1,0 +1,6 @@
+学习地址：github地址：https://github.com/MarouenMechtri/Docker-containers-deployment-with-OpenStack-Heat
+
+下载git:
+	yum install git -y
+git 克隆heat-docker 驱动：	
+	git clone https://github.com/openstack/heat.git

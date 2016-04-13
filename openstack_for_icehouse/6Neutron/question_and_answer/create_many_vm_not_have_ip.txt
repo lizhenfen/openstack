@@ -1,0 +1,11 @@
+参考网址：http://www.choudan.net/2014/03/10/OpenStack-Neutron-DHCP-%E9%97%AE%E9%A2%98.html
+
+原因： neutron-dhcp-agent 使用的的是： dnsmasq的配置
+原理：
+	当有新的地址增加或者删除时，netron发送一个SIGHUP到dnsmasqd，来迫使dnsmasq重新读取hosts文件
+	host文件位置：/var/lib/neutron/dhcp/xxx/hosts
+	该daemon重启读取完host文件后就完成dhcpdiscover
+解决：
+	修改neutron.conf:
+		report_interval=15 
+		agent_down_time = 30

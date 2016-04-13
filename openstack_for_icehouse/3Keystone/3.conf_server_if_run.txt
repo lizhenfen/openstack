@@ -1,0 +1,13 @@
+取消 创建admin 用户 的 临时变量：
+	unset OS_SERVICE_TOKEN OS_SERVICE_ENDPOINT
+创建永久变量：
+	vi keystone_admin.sh
+	export OS_USERNAME=admin
+	export OS_PASSWORD=openstack
+	export OS_TENANT_NAME=admin
+	export OS_AUTH_URL=http://conttroller:35357/v2.0
+验证：
+	keystone user-list
+	keystone tenant-list
+	keystone service-list
+	keystone endpoint-list

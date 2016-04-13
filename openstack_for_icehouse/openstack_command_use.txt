@@ -1,0 +1,972 @@
+controller节点(glance部分配置):
+	# crudini --set /etc/glance/glance-api-paste.ini filter:authtoken auth_host
+	controller
+	# crudini --set /etc/glance/glance-api-paste.ini filter:authtoken admin_user glance
+	# crudini --set /etc/glance/glance-api-paste.ini filter:authtoken
+	admin_tenant_name service
+	# crudini --set /etc/glance/glance-api-paste.ini filter:authtoken admin_password
+	glance
+	# crudini --set /etc/glance/glance-api-paste.ini filter:authtoken flavor keystone
+	# crudini --set /etc/glance/glance-registry-paste.ini filter:authtoken auth_host
+	controller
+	# crudini --set /etc/glance/glance-registry-paste.ini filter:authtoken admin_user
+	glance
+	# crudini --set /etc/glance/glance-registry-paste.ini filter:authtoken
+	admin_tenant_name service
+	# crudini --set /etc/glance/glance-registry-paste.ini filter:authtoken
+	admin_password glance
+	# crudini --set /etc/glance/glance-registry-paste.ini filter:authtoken flavor
+	keystone
+controller节点(nova部分配置)：
+	在nova.conf上启用：api_paste_config=/etc/nova/api-paste.ini
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken auth_host controller
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken auth_port 35357
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken auth_protocol http
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken auth_uri
+	http://controller:5000/v2.0
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken admin_tenant_name
+	service
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken admin_user nova
+	# crudini --set /etc/nova/api-paste.ini filter:authtoken admin_password nova
+
+yum -y install crudini openstack-utils: #crudini用来编辑配置文件，会覆盖已存在的的配置项
+编辑防火墙规则允许所有的进入流量：
+	# iptables -D INPUT -j REJECT --reject-with icmp-host-prohibited
+	# iptables -D FORWARD -j REJECT --reject-with icmp-host-prohibited
+	# service iptables save
+CPU计算：
+	需求： 200台虚拟机，无超载
+	物理机处理器频率： 2.6GHz
+	超线程数：2
+	处理器核数： 10
+	物理CPU个数：2
+	VM处理器平均频率： 2GHz
+	VM处理器最大频率： 16GHz
+	每个虚拟机CPU的核数：16/(2.6*2)  VM处理器最大频率/(物理机处理器频率*超线程数)
+	CPU的总的核心数：(200*2)/2.6   (VM的数量*VM处理器的平均频率)/物理机处理器频率
+	VM的CPU插槽数： CPU的总的核心数/处理器核数
+	服务器数量： VM的CPU插槽数/每个物理机的插槽数
+	每个服务器包含VM的数量： 虚拟机的总数/物理机的CPU插槽
+Memory计算：
+	需求：每个服务器25台虚拟机
+	VM的内存：2G
+	VM的最大动态内存：8G
+	服务器支持：2,4,6,8,16的插槽数量
+	每个计算节点的内存： VM的最大动态内存*每台服务器的VM的个数
+	每台服务器内存： 每台服务器上所有VM总内存/ 最大的可用内存
+一个计算节点可以运行几台VM:
+	(CPU超载系数*物理机cpu的core数)/ 每个实例的虚拟core数
+网络计算：
+消息队列： 推荐RabbitMQ
+默认：CPU:16:1 推荐：1:1  RAM:1.5:1 
+修改： /etc/nova/nova.conf
+		cpu_allocation_ratio= 和 ram_allocation_ratio
+	flavor=： VM的配置模板
+	默认虚拟机驱动：compute_driver=libvirt.LibvirtDriver
+					libvirt_type=kvm
+openstack 后端驱动：
+	vmwareapi.VMwareESXDriver: 允许调用vSphere的ESXi主机
+	vmwareapi.VMwareVCDriver: 允许管理VMware vCenter服务器
+云备份： backup-manager
+	要点：容易恢复，配置文件和架构
+	安装EPEL:rpm -Uvh http://mirrors.kernel.org/fedora-epel/6/i386/epel-release-6-8.noarch.rpm
+	导入GPG key: rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-EPEL-6
+	安装： yum install backup-manager
+	配置文件： /etc/backup-manager.conf  #注意文件的权限
+				指定配置目录：export BM_TARBALL_DIRECTORIES ="/var/lib/nova /etc/keystone /etc/cinder /etc/glance
+							  /var/lib/glance /var/lib/glance/images /etc/mysql"
+							  注意： 已经排除了/var/lib/nova/instances 
+				指定备份方式：export BM_ARCHIVE_METHOD = "tarball mysql"
+				指定本备份文件存放目录： export BM_REPOSITORY_ROOT ="//var/backups"
+				文件压缩方式： export BM_MYSQL_FILTYPE="gzip"
+				指定SSH上传用户： export BM_UPLOAD_SSH_USER="root"
+				export BM_MYSQL_DATABASES="nova glance keystone dash mysql cinder"
+				export BM_MYSQL_ADMINPASS="Define the root password in /root/.my.cnf"
+	简单的恢复文件：
+		停止准备恢复的所有服务。 例： service [msyql | glance-api l ance-registry] stop
+		导入备份数据库： mysql glance < glance.sql
+		还原目录： cp -a /var/backups/glance /glance/ 
+		重启服务： service [msyql | glance-api l ance-registry] start
+cinder服务：	
+	查看cinder的默认配额：cinder quota-defaults packtpub_tenant(租户)
+	配置cinder的值： 	  cinder quota-update --volumes(key) 20(value) packtpub_tenant
+	查看cinder的当前值：  cinder quota-show packtpub_tenant
+	创建thin-cinder：(不能使用快照)
+		cinder type-create "ThinVolume"
+		cinder type-key "ThinVolume" set storagetype:provisioningthin
+neutron网络服务：
+	neutron security-group-list #显示安全组
+	neutron security-group-rule-create --protocol icmp --direction(方向) ingress(进入) PacketPub-SG(安全组名)
+	neutron security-group-rule-create --protocol tcp --port-range-max --direction(方向) ingress(进入) PacketPub-SG(安全组名)
+	ip netns exec router router-id cmd  #在路由器中执行命令
+FWaas激活;
+	在neutron节点的 neutron.conf:
+		service_plugins=firewall
+		[service_providers]
+		service_provider = FIREWALL:Iptables:neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver:default 
+		[fwaas]
+		driver = neutron.services.firewall.drivers.linux.iptables_fwaas.IptablesFwaasDriver
+		enables = True
+	在dashboard	上启用firewall管理：
+		/usr/share/openstack-dashboard/openstack_dashboard/local/local_setting.py
+		'enable_firewall' = True 
+	重启neutron-server 和 dashboard:
+		/etc/init.d/neuttron-server restart
+		service httpd restart 
+	创建防火墙规则：neutron firewall-rule-create --protocol icmp --action allow --name FW01
+	创建防火墙策略：neutron firewall-policy-create --firewall-rules FW01 Fwpolicy01
+	创建    防火墙：neutron firewall-create FWpolicy01 --name FWaas 
+neutron-plugin:
+	可以同时使用多个插件，使网络更好
+OPNaas(在horizon主机上):
+	使用的是openswan底层驱动
+	安装： yum install openswan openstack-neutron-vpn-agent 
+	开启IPsec服务： /etc/init.d/psec start 
+	配置neutron使用neutron agent file(/etc/neutron/vpn_agent.ini):
+		[vpnagent]
+		vpn_device_driver = neutron.services.vpn.device_driver.ipsec.OpenSwanDriver
+	启用VPNaaS插件(/etc/neutron/neutron.conf):
+		service_plugin = ..,vpnaas
+		启用vpn驱动：
+			[service_providers]
+			service_provider=VPN:openswan:neutron.service.vpn.service_drivers.ipsec.IPsecVPNDriver:default 
+	在horizon上启动VPNaaS(/usr/share/openstack-dashboard/openstack_dashboard/local/local_setting.py):
+		'enable_VPNaaS':True 
+	重启服务：
+		/etc/init.d/httpd restart 
+		/etc/init.d/neutron-server restart 
+		/etc/init.d/neutron-vpn-agent restart 
+	命令创建IKE policy:
+		neutron vpn-ikepolicy-create --auth-algorithm sha1 --encryption-algorithm aes-256 --ike-version v2 --lifetime units=seconds,value=3600
+		--pfs group5 --phase1-negotiation-mode mian --name PP-IKE-Policy
+	命令创建VPN-service:
+		neutron vpn-service-create --tenant-id tennan-id --name PP_VPN_Service Router-VPN public_subnet
+	命令创建VPN:
+		neutron ipsec-site-connection-create --name PP_IPSEC --vpnservice-id PP_VPN_Service --ikepolicy-id PP-IKE-Policy --ipsecpolicy-id PP_IPSEC_Policy
+		--peer-address 192.168.48.0/24 --peer-id 172.24.4.232 --psk AwEsOmEvPn
+		
+openstack HA:
+	L1： 物理主机，网络设备，存储设备和虚拟机
+	L2： openstack服务，包括：compute,network,storage controllers,database,message queueing system
+	L3:  被openstack service管理的运行在物理机得虚拟机   由社区支持
+	L4:  包括运行在 虚拟机上的应用程序
+	oepnstack的HA主要是l1,l2
+	考虑服务类型：
+		statefull: database , message queue 
+		stateless: nova-api, nova-conductor, glance-api, keystone-api, neutron-, nova-scheduler, web server 
+	Active/active: statefull  
+	Active/passive stateless 
+	Mysql HA：
+		VIP：192.168.47.47
+		HAProxy01: 192.168.47.120
+		HAProxy02: 192.168.47.121
+		MySQL01:   192.168.47.125
+		MySQL02:   192.168.47.126
+		MySQL03:   192.168.47.127
+		安装HAproxy:
+			yum update ; yum install haproxy keepalived
+		查看HAProxy是否正确配置：
+			haproxy -v 
+		配置HAProxy节点：
+			备份： cp /etc/haproxy/haproxy.cf /etc/haproxy/haproxy.cfg.bak
+			配置： 
+			   global
+				log 127.0.0.1 lcoal2
+				chroot /var/lib/haproxy
+				pidfile /var/run/haproxy.pid 
+				maxconn 1020  #同时要查看 ulimit -n 
+				user haproxy 
+				group haproxy 
+				daemon
+				stats socket /var/lib/haproxy/stats.sock mode 600 level admin
+				stats timeout 2m 
+			   defaults 
+			   mode tcp 
+			    log global 
+				option dontlognull
+				option redispatch
+				retried 3 
+				timeout queue 45s
+				timeout connect 5s
+				timeout client 1m
+				timeout server 1m 
+				timeout check 10s 
+				maxconn 1020 
+			   listen haproxy-monitoring *:80
+			    mode tcp 
+				stats enable 
+				stats show-lgends 
+				stats resfresh 5s 
+				stats uri /
+				stats realm Haproxy\ Statistics
+				stats auth  monitor:packadmin
+				stats admin if TRUE
+			   frontend haproxy1  #在其他节点上改变这个值
+			    bind *:3306
+				default_backend mysql-os-cluster 
+			   backend msyql-os-cluster 
+			    balance roundrobin
+				server mysql01 192.168.47.125:3306 maxconn 151 check
+				server mysql02 192.168.47.126:3306 maxconn 151 check
+				server mysql03 192.168.47.127:3306 maxconn 151 check
+		启动HAproxy服务：
+			service haproxy start 
+		重复haproxy1 和 haproxy2 在 frontend 段下
+		为HAProxy服务增加VRRP(/etc/keepalive/keepalived.conf):
+			备份：cp /etc/keepalived/keepalived.conf /etc/keepalived/keepalived.conf.bak 
+			启用系统允许接受不存在的IP(/etc/sysctl.conf): net.ipv4.ip_nonlocal_bind=1 ; sysctl -p
+			配置：	
+				vrrp_script chk_haproxy{
+					script "killall -0 haproxy"
+					interval 2
+					weight   2 
+					}
+					vrrp_instance MYSQL_VIP{
+					interface eth0
+					virtual_router_id 120 
+					priority 111   #第二个HAProxy shi 110
+					adver_int 1 
+					virtual_ipaddress {
+						192.168.47.47/32 dev eth0
+					}
+					track_script{
+						chk_haproxy 
+					}
+					}
+		重复上面的步骤，在HAProxy2上
+		检查VIP是否被指派到eth0(HAProxy1和HAProxy2):
+			ip addr show eth0 
+		设置Galera插件在所有的mysql节点上：	
+			wget https://launchpad.net/codershipmysql/5.6/5.6.16-25.5/+download/MySQL-server-5.6.16_wsrep_25.5-1.rhel6.x86_64.rpm
+			wget https://launchpad.net/galera/0.8/0.8.0/+download/galera-0.8.0-x86_64.rpm
+		配置预下载的rpm文件：
+			rpm -Uhv galera-0.8.0-x86_64.rpm
+			rpm -Uhv MySQL-server-5.6.16_wsrep_25.51.rhel6.x86_64.rpm
+		配置完Galera插件后，创建用户和密码：
+			GRANT usage on *.* to set@'%' identified by 'sstpassword';
+			grant all privileges on *.* to sst@'%';
+			grant useage on *.* to galera@'%' identified by 'galerapass';
+			insert into mysql.user(host,user) values('%','haproxy');
+			flush privileges;
+			queit
+		配置msyql wresp Galera library在每个msyql节点(/etc/mysql/conf.d/wsreo.conf):
+			wsrep_provider=/usr/lib64/galera/libgalera_smm.so 
+			wsrep_cluster_address="gcomm://"  #在其他数据库节点上该为wsrep_cluster_address="gcomm://192.168.47.n" n为前面msyql的地址
+			wsrep_sst_method=rsync
+			wsrep_sst_auth=sst:sstpass 
+			重启mysql服务
+			mysql命令端重设全局配置;
+				mysql>> set global wsrep_cluster_address="gcomm://192.168.1.140:4567"
+			检查wsrep是否在复制：
+				mysql -e "show status like 'wsrep%'"  
+				应该看到的结果：    # wsrep_ready=ON 
+					wsrep_cluster_size 3   #3表示有3个节点
+					wsrep_cluster_status Primary  #Primary表示当前为主节点
+					wsrep_connected ON 
+	RabbitMQ HA:
+		VIP: 192.168.47.47 
+		HAProxy01:192.168.47.120 
+		HAProxy02: 192.168.47.121 
+		Cloud controller01: 192.168.47.100
+		Cloud controller02: 192.168.47.101
+		Cloud controller03: 192.168.47.102
+		停止其他controller节点上的RabbitMQ,复制第一个节点上的erlang cookie到其他节点:
+			scp /var/lib/rabbitmq/.erlang.cookie\ root@cc02:/var/lib/rabbitmq/.erlang.cookie 
+			scp /var/lib/rabbitmq/.erlang.cookie\ root@cc03:/var/lib/rabbitmq/.erlang.cookie 
+		设置文件为rabbitmq用户组和400权限：
+			chown rabbimq:rabbitmq /var/lib/rabbitmq/.erlang.cookie
+			chmod 400 /var/lib/rabbitmq/.erlang.cookie
+		启动其他controller节点上的RabbitMQ:
+			service rabbitmq-server start
+		加入集群：
+			rabbitmqctl stop_app  #停止rabbitmqctl
+			rabiitmqctl join-cluster rabbit@cc01  #cc01是第一个controller的主机名
+			rabbitmqctl start_app  #启动rabbimqctl
+		检测是否加入集群：
+			rabbitmqctl cluster_status 
+		通知RabbitMQ使用mirror queue:
+			rabbitmqctl set_policy HA '^(?!amq\.).*' '{"ha-mode":"all","ha-sync-mode":"automatic"}'
+		编辑所有的RabbitMQ配置文件(/etc/rabbitmq/rabbimq.config)：
+			[{rabbit,
+			[cluster_nodes,{['rabbit@cc01','rabbit@cc02','rabbit@cc03'],ram}]}]
+		可以配置负载均衡，在HAProx1 和 haproxy2
+			listen rabbitmqcluster 192.168.47.47:5670
+				mod tcp 
+				balance roundrobin 
+				server cc01 192.168.47.100:5672 check inter 5s rise 2 fall 3
+				server cc01 192.168.47.101:5672 check inter 5s rise 2 fall 3
+				server cc01 192.168.47.102:5672 check inter 5s rise 2 fall 3
+		重载haproxy：
+			service haproxy reload
+		重新配置各服务的消息队列的地址和端口
+Controller HA:
+	配置：yum update ; yum install pacemaker and corosync
+	配置(使用一个未使用的多播地址)：
+		备份：cp /etc/corosync/corosync.conf /etc/corosync/corosync/conf.bak 
+		配置： 
+			Interface {
+				ringnumber:0
+			bindnetaddr:192.168.47.0 
+			mcastaddr:239.225.47.10 
+			mcastprot:4000
+			}
+	生成认证秘钥在cc01(第一个)，用于云控制器互联：
+		corosync-keygen
+	复制秘钥和配置到其他的controller节点：
+		scp /etc/corosync/authkey /etc/corosync/corosync.conf root@192.168.47.101:/etc/corosync/
+		scp /etc/corosync/authkey /etc/corosync/corosync.conf root@192.168.47.102:/etc/corosync/
+	重启服务：	
+		service pacemaker start 
+		service corosync start 
+	检查状态;
+		crm_mon -1 
+		显示：OnlineL[cc01 cc02 cc03]
+	默认corosync使用Shoot The Other NOde In The Head ,在双节点中需要禁用：crm configure property stonith-enabled="false"
+	在第一个节点上设置VIP和其他的节点共享：
+		crm configure primitive VIP ocf:heartbeat:IPaddr2 params ip=192.168.47.48 cidr_netmask=32 op monitor interval=3s
+	查看VIP是否已经在cc01上： crm_mon -l  #当cc01在3s无应答则自动转到下一个
+	重新设置OS_AUTH_URL=http://192.168.47.48:500/v2.0 
+	
+	设置RAs并且配置Pacemakerwe 为nova上;
+		下载：cd /usr/lib/ocf/resource.d/openstack
+			wget https://raw.github.com/leseb/OpenStack-ra/master/nova-api
+			wget https://raw.github.com/leseb/OpenStack-ra/master/nova-cert
+			wget https://raw.github.com/leseb/OpenStack-ra/master/nova-consoleauth
+			wget https://raw.github.com/leseb/OpenStack-ra/master/nova-scheduler
+			wget https://raw.github.com/leseb/OpenStack-ra/master/nova-vnc
+			chmod a+rx *
+		检查Pacemaker是否准备好新RAs:
+			crm ra info ocf:openstack:nova-api 
+		使用agent去管理nova-api(p_nova-api):
+			crm -configure primitive p_nova-api ocf:openstack:nova-api params config="/etc/nova/nova.conf" op monitor interval="5s" timeout=5s 
+		创建p_nova-cert管理nova-cert:
+			crm config primitive p_cert ocf:openstack:nova-cert params config="/etc/nova/nova.conf" op monitor interval="5s" timeout="5s"
+		创建p_consoleauth管理nova-consoleauth:
+			crm config primitive p_consoleauth ocf:openstack:nova-consoelauth params config="/etc/nova/nova.conf" op monitor interval="5s" timeout="5s"
+		创建p_scheduler管理nova-scheduler:
+			crm config primitive p_scheduler ocf:openstack:nova-scheduler params config="/etc/nova/nova.conf" op monitor interval="5s" timeout="5s"
+		创建p_novnc管理nova-novnc：
+			crm configure primitive p_novnc ocf:openstack:nova-vnc params config="/etc/nova/nova.conf" op monitor interval="5s" timeout="5s"
+		RA 配置Pacemaker为keystone(在所有的contrller节点):
+			下载：cd /usr/lib/ocf/resource.d/openstack 
+			wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/keystone
+			创建p_keystone管理keystone:
+				crm configure primitive p_keystone ocf:openstack:keystone params config="/etc/keystone/keystone.conf" op monitor interval="5s" timeout="5s"
+		RA配置Pacemaker管理glance:
+			 cd /usr/lib/ocf/resource.d/openstack
+			 wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/glance-api
+			 wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/glance-registry
+			 创建p_glance-api管理glance:
+				crm configure primitive p_glance-api ocf:openstack:glance-api params config="/etc/glance/glance-api.conf" op monitor interval="5s" timeout="5s"
+			 创建p_glance-registry管理glance-registry:
+				crm cofnigure primitive p_glance-registry ocf:openstack:glance-registry config="/etc/glance/glance-registry.conf" op monitor interval="5s" timoeut="5s"
+		RA配置Pacemaker管理neutron-server:
+			cd /usr/lib/ocf/resource.d/openstack
+ 			wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/neutron-server
+			创建p_neutorn-server管理neutron-server：
+				crm configure primitive p_neutron-server ocf:openstack:neutron-server params config="/etc/neutron/neutron.conf" op monitor interval="5s" timeout="5s"
+	配置L3 agent的HA:
+		cd /usr/lib/ocf/resource.d/openstack 
+		wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/neutron-agent-l3
+		配置Pacemaker管理neutron-L3-agent:
+			crm configure primitive p_neutron-l3-agent ocf:openstack:neutron-l3-agent params config="/etc/neutron/neutron.conf" \
+			plugin_config="/etc/nuetorn/l3_agent.ini" op monitor interval="5s" timeout="5s"
+	配置DHCP agent的HA:
+		cd /usr/lib/ocf/resource.d/openstack
+		wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/neutron-agent-dhcp
+		配置Pacemaker管理neutron-dhcp-agent:
+			crm configure primitive p_neutron-dhcp-agent ocf:openstack:neutron-dhcp-agent params config="/etc/neutron/neutron.conf"\
+			plugin_config="/etc/neutron/dhcp_agent.ini" op monitor interval="5s" timeout="5s"
+	配置Metadata agent的HA：
+		cd /usr/lib/ocf/resource.d/openstack
+		wget https://raw.github.com/madkiss/openstack-resource-agents/master/ocf/neutron-metadata-agent
+		配置Pacemaker管理neutron-metadata-agent:
+			crm configure primitive p_neutron-metadata-agent ocf:openstack:neutron-metadata-agent params config="/etc/neutron/neutron,conf"\
+			plugin_config="/etc/neutorn/metadata_agent.ini" op monitor interval="5s" timeout="5s"
+准生产环境：
+	最小化安装系统后： 
+		禁用selinux: echo "SELINUX=disabled" > /etc/sysconfig/selinux
+		禁用iptbales: service iptables stop; chkconfig iptables off
+		篇外话：在生产环境下，不要关闭安全工具
+	编辑两个网卡(/etc/sysocnfig/network-script/)：
+		ifcfg-eth0:
+			DEVICE=etho
+			ONBOOT=yes
+			BOOTPROTO=static
+			IPADDR= ip1 
+			NETMASK= netmask
+		ifcfg-eh1:
+			DEVICE=eth1
+			ONBOOT=yes
+			BOOTPROTO=static
+			IPADDR= ip2 
+			NETMASK= netmask
+		重启网络： service network restart
+	配置主机名(/etc/sysconfig/network):
+		HOSTNAME= hostname
+	重启主机： reboot
+	配置xCAT:
+		下载： http://sourceforge.net/p/xcat/wiki/Download_xCAT/{xcat-core-*tar.bz2 and xcat-dep*tar.bz2} #其中*表示当前稳定的版本号
+		解压：
+			tar jxf xcat-core-*tar.bz2 ; tar jxf xcat-dep*tar.bz2
+		安装REPO源：
+			cd xcat-core
+			./makelcoalrepo.sh ; ./makelcoalrepo.sh 
+		安装：	yum install xCAT xCAT-server xCAT-client perl-xCAT
+		更新xCAT命令到path： . /etc/profile.d/xcat.sh 
+		测试： tabdump site 
+		番外话： xCAT使用数据库sqlite3， 数据文件在/etc/xcat 
+	配置REPO为openstack和chef server安装(查找新版本http://rpmfind.net/linux/rpm2html/search.php?query=xCAT-OpenStack)：
+		wget ftp://ftp.pbone.net/mirror/ftp.sourceforge.net/pub/sourceforge/x/xc/xcat/yum/2.8/core-snap/xCAT-OpenStack-2.8.6-snap201409160710.x86_64.rpm
+		mv xCAT-OpenStack-2.8.6-snap201409160710.x86_64.rpm xCAT-OpenStack.rpm
+		rpm -ivh xCAT-OpenStack.rpm
+		番外话： xCAT-OpenStack是meta-meta包用来管理xCAT节点：包括硬件和软件
+	配置DNS(/etc/resolve.conf)：
+		domain FQDN(baidu)
+		nameserver dns-ip 
+		在hosts文件增加(/etc/hosts):
+			ip name name.FQDN 
+		番外话： (二选一)使用配置：chdef -t site forwards=dns-ip1,dns-ip2,..
+		运行dns测试：
+			maekdns -n 
+	配置DHCP：
+		chdef -t site dhcpinterfaces=eth0  #配置dhcp通过eth0出去
+	定义自动发现(重要的一步)：
+		chdef -t network 47_47_0_0-255_255_0_0 dynamicrange=47.147.50.1-
+	指定hostname到固定的组(naming group):
+		mkdef chefserver goups=chefserver,management,all #定义一个主机名为chefserver的节点，属于chefserver，management,all组
+		mkdef compute[01-10] groups=compute,all  #定义主机名compute01...compute10，属于compute和all组的10个主机
+		根据相同的方式：定义controller ,storage nodes , network nodes 
+		检测： nodels
+		批量操作： tabedit hosts 
+				  #node,ip,hostname,otherinterfaces,comments,disable 
+				  #组名,主机名+ip$1,
+				  "controller","|controller(\d+)|37.147.50.($1+0)|","|(.*)|($1).packtpub|",,,
+				makehosts  #使用此命令把写入/etc/hosts文件
+				makehosts controller(组名)  #仅仅写入controller组到hosts文件
+				番外话： 使用相同的方式增加到 compute, storage, network 
+		映射DNS: makedns
+		检查dns设置是否生效： host chefserver 
+	网络节点的不同网卡需要指定连接到每个节点，告诉xCAT不同的网口到每个节点，可以使用命令或xCAT的nics表
+		例: 每个主机需要指定2个网口为Chef server
+		命令：
+			chdef chefserver nicips.eth0=47.147.50.14 nicips.eth1=94.49.50.14 
+			查看: lsdef chefserver 
+		nicstable: 通过正则指定所有的
+			chdef controller nicips.eht0='|controller(\d+)|47.147.50.($1+0)'\ nicips.eth1='|controller(\d+)|94.49.50.($1+0)|' nicips.eth2='|controller(\d+)|172.16.50.(\d+0)|'
+			指定compute , storage, network 
+	配置portscript，设置all组和eth1默认外部接口:
+		chdef all -p postscripts="confignics -s" 
+		chdef all -p positscripts="configgw eth1"
+	定义REPO：
+		默认：https://github.com/stackforge/openstack-chef-repo
+		创建目录： mkdir /install/chef-cookbooks/xcat-icehouse ； cd /install/chef-cookbooks/xcat-icehouse 
+		下载： https://github.com/ceph/ceph-cookbook 为ceph 
+		创建新目录： cloud_environment 云环境模板被/opt/xcat/share/xcat/templates/cloud_environment/下的模板代替
+	为每个节点分配角色：
+		chdef controller01-controller03 cfgmgr=chef cfgserver=chefserver cfgmgtroles=packtpub-os-base-controller
+		配置其他节点：
+			compute:cfgmgtroles= packtpub-os-compute-worker
+			storage: cfgmgtroles=ceph-osd,ceph-mon
+			network :cfgmgtroles=packtpub-os-network
+		解释：
+			cfgmgr: 定义管理节点的post-script安装 的主机profile 或组
+			cfgserver: 定义配置主句的名称： chefserver 
+			cfgmgtroles: 定义每个节点/组 的角色列表  在 /install/chef-cookbooks.xcat-icehouse/roles下
+	告诉Chef server怎么加载cookbook; 选择什么环境： 使用cloud 文件
+		mkdef all cloud=packpub all extinterface=eth0 admininterface=eth1 intinterface=eth2 template="/opt/xcat/share/xcat//templates/cloud_environment/icehouse.rb.tmpl"\
+		repository="/install/chef-cookbooks/xcat-icehouse" virttype=kvm 
+		生产云数据文件： makeclouddata packppub  #生成名为packpub的全局描述,包括节点的all组，网络接口，模板环境， repository路径，虚拟机类型
+	启动后：
+		mountinstall: postboot script 用来挂载openstack chef cookbook 在/install 目录
+		loadclouddata: 用来加载预先生成的云详细文档
+		命令：chdef chefserver -p postbootscripts=mountinstall,loadclouddata
+chef  server预安装：
+	需求：
+		每个节点需要在MIN主机被定义
+		每个节点都需要PXE boot
+		MIN主机需要包含boot image 
+	下载最新的chef:	
+		wget http://sourceforge.net/projects/xcat/files/kits/\ chef/x86_64/chef-11.4.0-1-rhels-6-x86_64.tar.bz2/download
+		addkit chef-11.4.0-1-rhels-6-x86_64.tar.bz2
+		番外话： kit是打包软件为xCAT
+	检测kit组件是否已经被增加在MIN主机
+		lsdef -t kitcomponent  | grep chef 
+	增加kit 到系统镜像
+		addkitcomp -i centos-6.5 chef_server_kit,chef_workstation_kit
+		查看MIN主机上的哪个镜像被分配到哪个节点： lsdef chefserver -i provemedthod
+	自动发现主机：
+		nodediscoverstart noderang=chefserver
+	开机chef server 
+	检测指定是否生效：
+		xdsh chefserver 'knife client list'
+	创建openstack epel源：
+		mkdir -p /install/post/otherpkgs/centos/x86_64 && cd /install/post/otherpkgs/centos/x86_64 
+		wget https://repos.fedorapeople.org/repos/openstack/EOL/openstackicehouse/rdo-release-icehouse4.noarch.rpm
+	xCAT默认提供netboot 列表在/opt/xcat/share/xcat/netboot/ 对不同的操作系统
+		chdef -t osimage centos imagetype=linux otherpkgdir=/install/post/otherpkgs/centos/x86_64 otherpkglist=/opt/xcat/share/xcat/betboot/centos/compute.centos.pkglist
+		应用到所有的xCAT节点的'all'组：
+			chdef =p -t grou all postbootscripts=otherpkgs 
+		检测是否生效：
+			lsdef comtroller01 -i postbootscripts 
+		应用chef-client到所有的openstack节点：
+			chdef controller -p postbootscripts=install_chef)client 
+			在compute, storage， network应用
+		应用外部网络桥接：	
+			chdef network -p postbootscripts="confignics -script config-ex"
+		所有的存储节点使用ubuntu:
+			检测： lsdef -i storage -i promethod 
+		启动第一个keystone,network,storage,compute节点
+生产环境配置HA： 在MIN主机上
+	haproxy:
+		mkdef haproxy[01-02] groups=ha,all 
+		增加解析到hosts文件，然后makedns 
+		告诉MIN ha使用网口：
+			chdef haproxy01 nicips.eth0=47.147.50.45 nicips.eth1=94.49.50.45 nicips.eth2=172.16.50.45 
+			在haproxy02上进行同样的配置
+		创建完节点后的配置：
+			chdef haproxy -p postscripts="confignics -s"
+			chdef haproxy -p postscripts="configgw eht1"
+		确认haproxy启用负载均衡(/etc/default/haproxy): ENABLED=1 
+		
+网络高级功能：
+	ovs-vsctl show: 显示虚拟交换配置
+	iptables -S |grep tap*  查看关于neutron 在firewall上的配置，openvswi-sg-chain安全链
+	ovs-ofctl dump-flows br-tun  #查看关于vlan流的信息
+	ovs-ofctl show br-tun  #查看附加端口的信息
+	ip netns   #查看网络命名空间
+	ip netns exec qdhcp-94245cc2-ed34-0452-4632-47ffe23dee31 ip addr   #在dhcp上
+集成LBaas:
+	在controller上：
+		安装haproxy: yum install haproxy -y
+		检查插件是否启用(/etc/neutron/neutorn.conf):
+			servicce_plugins = router, lbaas
+		启用lbaas插件：
+			service_provier=LOADBALANCER:Haproxy:neutron.services.loadbalancer.drivers.haproxy.plugin_driver.HaproxyOnHostPluginDriver:default
+		重启服务： service neutron-server restart
+	在网络节点(/etc/nuetron/neutron.conf)：	
+		service_plugins = router,lbaas
+		启用lbaas驱动： service_provider = LOADBALANCER:Haproxy:neutron.services.loadbalancer.drivers.haproxy.plugin_driver.HaproxyOnHostPluginDriver:default
+		配置lbaas 使用linux bridge 或者 openvSwitch(/etc/neutron/lbaas_agent.ini):
+			interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+			[haproxy]
+			user_group = haproxy
+		启动LBaaS 代理 和 openvSwitch 代理：
+			service neutron-plugin-openvswitch-agent restart
+			service neutron-lbass-agent start
+		在dashboard界面显示 LBaaS服务(/etc/openstack-dashboard/local_setting)：	
+			OPENSTACK_NEUTRON_NETWORK={'enable_lb':True,}
+		重启httpd 服务：
+			service httpd restart
+	命令流程：
+		创建一个池
+		增加成员
+		联接成员
+		为池创建一个VIP
+		创建健康检查
+		联接健康检查和池
+安装Heat:
+	安装:
+		yum instaall openstack-heat-api openstack-heat-api-cfn heat-engine python-heatclient
+	数据库授权：
+		登录数据库，授权 grant all privileges on heat.* to ''heat'@'%' identified by 'heat';
+	加载admin环境变量：	
+		source keystone_openstack.sh 
+	创建用户：
+		keystone user-create --name heat --pass heat 
+	分配admin角色到 heat用户：
+		keystone user-role-add --user=heat --tenant=service --role=admin 
+	配置heat连接数据库 和 AMQP 连接：
+		[database]
+		connection = mysql://heat:heat@cc01/heat 
+		[DEFAULT]
+		rpcbackend=rabbit
+		rabbit_host=
+		rabbit_password=
+	设置keystone认证：
+		[keystone_authtoken]
+		auth_uri=http://contorller:5000/v2.0
+		identity_uri=http://controller:35357
+		admin_tenant_name=
+		admin_user=heat 
+		admin_password=heat
+	生成数据库：
+		su -s "/bin/sh" -c "heat-manage db_sync" heat 
+	启动服务 , 同时开机启动
+		service openstack-heat-api start 
+		service openstack-heat-api-cfn start
+		chkconfig openstack-heat-api on
+		chkconfig openstack-heat-api-cfn on
+云监控：
+	ceilometer
+	  controller:
+		安装： yum install openstack-ceilometer-api openstack-ceilometer-collector openstack-ceilometer-central python-ceilometerclient
+		Mogondb: yum --enablerepo=epel -y install mongodb-server mongodb 
+		启动数据库： service mongod start ;chkconfig mongd on 
+		确认mongo数据库在管理IP地址(/etc/mongodb.conf):
+			bind_ip = admin_ip_addr
+			file:smallfiles= true   #改变joural文件的大小
+			默认床1GB的joural 在(/var/lib/mongodb/journal/)
+			重启服务；service mongod stop ；rm /var/lib/mongodb/journal/prealloc.* ;service mongod start
+		创建数据库：
+			mongo --host local_ip --eval 'db=db.getSiblingDB('ceilometer');db.createUser({user:"ceilometer",
+								pwd:"ceilometer_pasword",roles:["readWrite","dbAdmin"]})'
+		指导ceilometer连接mongodb数据库：
+			connection=mongodb://ceilometer:ceilometer_password@admin_ip_addr:27017/ceilometer
+		生成安全秘钥： ADMIN_TOEKN = $(openssl rand -hex 10)
+		存储安全秘钥，到指定位置：
+			[publisher_rpc]
+			publisher_rpcmetering_secret = $ADMIN_TOKEN
+		创建用户，绑定角色，注册服务，访问端点(8777)(/etc/ceilometer/ceilometer.conf):
+			rabbit_host=172.16.50.1
+			rabbit_port=5672
+			rabbit_password=RABBIT_PASS
+			rpc_backend=rabbit
+			Authentication info for Ceilometer:
+			 [service_credentials]
+			os_username=ceilometer
+			os_password=service_password
+			os_tenant_name=service
+			os_auth_url=http:// 172.16.50.1:35357/v2.0
+			Connection info for Keystone
+			[keystone_authtoken]
+			auth_host=172.16.50.1
+			auth_port=35357
+			auth_protocol=http
+			auth_uri=http://172.16.50.1:5000/v2.0
+			admin_user=ceilometer
+			admin_password=service_password
+			admin_tenant_name=service
+		重启服务
+	  compute:
+		 安装：yum install openstack-ceilometer-compute
+		 配置(/etc/nova/nova.conf)：
+			notification_driver = nova.openstack.common.notifier.rpc_notifier
+			notification_driver = ceilometer.compute.nova_notifier
+			instance_usage_audit = True
+			instance_usage_audit_period = hour
+			notify_on_state_change = vm_and_task_state
+		更新ceilometer的配置文件(/etc/ceilometer/cilometer.conf):
+			[publisher_rpc]
+			metering_secret= $ADMIN_TOKEN  #与controller的$ADMIN_TOKEN值相同
+			[DEFAULT]
+			rabbit_host = 
+			rabbit_password = 
+			log_dir = /var/log/ceilometer  #日志
+			[keystone_token]
+			auth_host = cc01
+			auth_port = 35357
+			auth_protocol = http
+			admin_tenant_name = service
+			admin_user = ceilometer
+			admin_password = service_password
+			#以下选项不同，可能不需要配置
+				#说明Add service credentials 
+				[service_credentials]
+				os_auth_url = http://cc01.packtpub:5000/v2.0
+				os_username = ceilometer
+				os_tenant_name = service
+				os_password = service_password
+		重启agent 和compute :
+			service nova-compute  ceilometer-agent-compute restart 
+			
+	zabbix Server:
+		前置：
+			可以从此网址下载EPEL：http://repo.zabbix.com/zabbix/2.2/rhel/6/x86_64/zabbix-release-2.2.10-1.el6.noarch.rpm
+		安装：
+			yum install zabbix-server-mysql zabbix-web-mysql
+		建立数据库：
+			create database zabbix ;(需要设置utf8字符集)
+			grant all privileges on zabbix.* to zabbix@'localhost' identified by 'zabbix';
+		配置数据库设置(/etc/zabbix/zabbix_server.conf)：
+			DBHost = 
+			DBName = 
+			DBUSer = 
+			DBPassword = 
+		禁用Selinux:
+		导入数据库文件：
+			find / -name "data.sql"  #安装后默认位置：/usr/share/doc/zabbix-server-mysql-2.2.10/create
+			mysql zabbix < schema.sql 
+			mysql zabbix < images.sql 
+			mysql zabbix < data.sql
+			#注意：必须按顺序导入
+			#默认用户名： admin  密码: zabbix
+		启动服务： /etc/init.d/zabbix-server start 
+		配置PHP(/etc/httpd/conf.d/zabbix.conf)：
+			php_value max_execution_time 300
+			php_value memory_limit 512M
+			php_value post_max_size 16M
+			php_value upload_max_filesize 2M
+			php_value max_input_time 250
+			php_value date.timezone Europe/Amsterdam
+		重启服务： service httpd restart
+	Zabbix client:
+		前置：	
+			下载EPEL：http://repo.zabbix.com/zabbix/2.2/rhel/6/x86_64/zabbix-release-2.2-1.el6.noarch.rpm
+		安装：
+			yum install zabbix zabbix-agent
+		客户端配置(/etc/zabbix/zabbix.conf):
+			Server =
+			Hostname = 
+		开启防火墙：
+			iptables -D INPUT -p tcp -m tcp --dport 10050 -j ACCEPT
+		重启代理：
+			/etc/init.d/zabbix-agent restart 
+		
+日志系统：
+	logstash
+	下载java:
+		网址：http://download.oracle.com/otn-pub/java/jdk/8u40-b25/jre-8u40-linux-x64.tar.gz
+		wget --no-cookies --no-check-certificate --header "Cookie:gpw_e24=http%3A%2F%2Fwww.oracle.com%2F; oraclelicense=acceptsecurebackup-cookie"
+	增加一个软连接：
+		alternatives --install /usr/bin/java java /jre1.8*/bin/java 1
+	增加 elasticsearch的EPEL文件(/etc/yum.response.d/)：
+		[elasticsearch]
+		name=Elasticsearch
+		baseurl=http://packages.elasticsearch.org/elasticsearch/1.4/centos
+		gpgcheck=1
+		gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
+		enabled=1
+	安装elasticsearch:
+		yum install elasticsearch -y
+	下载安装kibana:
+		wget https://download.elasticsearch.org/kibana/kibana/kibana-4.0.1-linux-x64.tar.gz
+		tar xvf kibana-4.0.1-linux-x64.tar.gz
+		mv kibana-4.0.1 /usr/share/kibana
+	配置kibana可以连接上elasticsearch(/usr/share/kubana/config.js):
+		elasticsearch:"http://logstash.packetpub:9200"  #logstash.packetpub是elasticsearch的FQDN
+	更新系统，安装nginx和redis:
+		yum clean all 
+		yum update -y 
+		yum install nginx redis -y 
+	配置nginx运行kibana(/etc/nginx/nginx.conf):
+		include	/etc/nginx/conf.d/*.conf 
+	创建kibana的配置文件(/etc/nginx/conf.d/kibana.conf)：
+		server {
+			listen *:80;
+			server_name logtash.packetpub;  #主机名 
+			access_log /var/log/nginx/kibana.log;
+			location /{
+				root /usr/share/kibana;
+				index index.html index.htm;
+				proxy_pass http://localhost:5601/;
+				proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+				proxy_set_header Host $host;
+				proxy_set_header X-Real-IP $remote_addr;
+				proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+				}
+				}
+	配置redis数据库(/etc/redis/redis.conf):
+		bind ext_ip_addr
+	安装Logstash,创建REPL(/etc/yum.repos.d/logstash.repo):
+		[logstash]
+		name=Logstash
+		baseurl=http://packages.elasticsearch.org/logstash/1.4/centos
+		gpgcheck=1
+		gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
+		enabled=1
+	安装logstash:
+		yum install logstash -y 
+	重启服务：	
+		service elasticsearch restart
+		service nginx restart 
+		service redis restart 
+		service logstash restart
+		cd /usr/share/kibana/bin; ./kibana 
+		备注开启脚本：https://github.com/Xaway/script/blob/master/init_kibana
+	创建logstash配置文件更好的解释(/etc/logstash/openstash)：
+		input{
+			redis{
+				host => "local_admin_ip"
+				type => "redis-input"
+				data_type => "list"
+				key => "logstash"
+				}
+			}
+		output{
+			elasticsearch{ host => "logstash.packetpub"}
+			}
+	增加logstash的ip 到SSL下(/etc/pki/tls/openssl.cnf)：
+		[v3_ca]
+		subjectAltName = IP: ip_address
+	生产ssl证书和私钥：
+		mkdir certs
+		openssl req -config /etc/pki/tls/openssl.cnf -x509 -days 3650 -batch -nodes -newkey rsa:2048 -keyout certs/server.key -out certs/server.crt
+	更新logstash的配置文件():
+		input{
+		...
+		lumberjeck {#新增
+			port => 6782
+			ssl_certificate => "/certs/server.crt"
+			ssl_key => "/certs/server.key"
+			type => "lumberjeck"
+			}
+		}
+	重启logstash:
+		service logstash restart
+	转到第一个云控制器，设置进行转发(/etc/yum.repos.d/logstash-forward.repo):
+		[logstash-forwarder]
+		name=logstash-forwarder repository
+		baseurl=http://packages.elasticsearch.org/logstashforwarder/centos
+		gpgcheck=1
+		gpgkey=http://packages.elasticsearch.org/GPG-KEY-elasticsearch
+		enabled=1
+	a安装转发包：
+		yum install logstash-forwarder -y 
+	复制SSL证书：
+		scp root@remote_ip:/root/certs/server.crt /certs/
+	创建本地的logstash的配置文件(/etc/logstash-forwarder.conf)：
+		{
+			"network":{
+			"servers":["logstash_server_ip:6782"],
+			"ssl ca":"/etc/logstash-forwarder.crt",
+			"timeout":15
+			},
+			"files"[
+			{
+				"paths":["/var/log/nova/api.log"],
+				"fields":{"type":"openstack","component":"nova"}
+				}
+			]
+		}
+	重启服务：	
+		service logstash-forwarder restart 
+		/opt/logstash-forwarder/bin/logstash-forwarder -config /etc/logstash-forwarder.conf 
+	中心logstash服务：
+		input {
+			. . .
+			 }
+			filter{
+			 if [type] == "openstack" {
+			 grok {
+			 patterns_dir => "/opt/logstash/patterns/"
+			 match=>[ "message","%{TIMESTAMP_ISO8601:timestamp}
+		%{NUMBER:response} %{AUDITLOGLEVEL:level} %{NOTSPACE:module} \
+		[%{GREEDYDATA:program}\] %{GREEDYDATA:content}"]
+		 }
+		multiline {
+		 negate => false
+		 pattern => "^%{TIMESTAMP_ISO8601}%{SPACE}%{NUMBER}?%{SPACE}?TRA
+		CE"
+		 what => "previous"
+		 stream_identity => "%{host}.%{filename}"
+		 }
+		 date {
+		 type => "openstack"
+		 match => [ "timestamp", "yyyy-MM-dd HH:mm:ss.SSS" ]
+		 }
+		 }
+		}
+		output {
+		...
+		}	
+
+高性能：
+	硬件提升
+	缓存memcached：
+		yum install memcached python-memcache 
+		注意： 增加memcache集群，一定要修改时间区域： /etc/sysconfig/clock
+		检测memcahce的状态：	
+			memcached-tool 127.0.0.1:11211 stats
+		修改缓存大小(/etc/sysconfig/memcached)：
+			CACHESIZE=2048
+		重启memcached:
+			service memcached restart
+		修改keystone使用memcache(/etc/keystone/keystone.conf):
+			[token]
+			driver = keystone.token.backends.memcache.Token
+			...
+			[cache]
+			enabled = True 
+			config_prefix = cache.keystone  
+			expiration_time = 300
+			backend = dogpile.cache.memcached
+			backend_argument = url:localhost:11211
+			use_key_mangler = True
+			debug_cache_backend = False
+		重启keystone:
+			service keystone restart 
+		检测keystone是否已经连接上memcache：
+			lsof -i :11211
+		动态检测命中：
+			 watch –d –n 1 'memcached-tool 127.0.0.1:11211 stats'
+	Haproxy使用memcached:
+		listen memcached-cluster 192.168.47.47:11211
+		 balance roundrobin
+		 maxconn 10000
+		 mode tcp
+		 server cc01 192.168.47.100:11211 check inter 5s rise 2 fall 3
+		 server cc02 192.168.47.101:11211 check inter 5s rise 2 fall 3
+		 server cc03 192.168.47.102:11211 check inter 5s rise 2 fall 3
+	重启： service htproxy reload 
+	告诉nova使用memcache，在controller和nova节点(/etc/nova/nova.conf):
+		memcached_servers = cc01:11211,cc02:11211,cc03:11211
+	dashboard使用memcache(/etc/openstack-dashboard/local_settings.py):
+		...
+		CACHES = {
+		 'default': {
+		 'BACKEND' : 'django.core.cache.backends.memcached.
+		MemcachedCache',
+		 'LOCATION' : '192.168.47.47:11211',
+		 }
+		}
+		...
+		
+		对hashboard使用memcache集群：
+		...
+		listen horizon 192.168.47.47:80
+		 balance roundrobin
+		 maxconn 10000
+		 mode tcp
+		 server cc01 192.168.47.100:80 cookie cc01 check inter 5s rise
+		2 fall 3
+		 server cc02 192.168.47.101:80 cookie cc02 check inter 5s rise
+		2 fall 3
+		 server cc03 192.168.47.102:80 cookie cc03 check inter 5s rise
+		2 fall 3
+	消息队列：	
+		查看Socket描述和 file描述：
+			rabbitmqctl status
+			优化(/etc/security/limit.d/rabbitmq.conf)：
+			  增加文件描述符：
+				# OpenStack: RabbitMQ
+				# Increase maximum number of open fi to 4096 for RabbitMQ
+				#<domain> <type> <item> <value>
+				rabbitmq soft nofile 4096
+			  查看新的文件描述符是否生效：
+				su - rabbitmq -s /bin/sh -c 'ulimit -n'
+			  重启rabbitmq:   #去除缓存
+				service rabbitmq-server restart 
+			  检测已更新的limit值：
+				rabbitmqctl status | grep -A 4 file_descriptors
+			番外话： 在不重启RabbitMQ的情况下，更新服务：
+				ps -auxw | grep ^rabbit | cut -d' ' -f 3
+				echo -n "Max open files=1024:4096" > /proc/2231/limits
+				rabbitmqctl eval 'file_handle_cache:set_limit(3996)'
+	Rally：
+		git clone https://github.com/stackforge/rally.git
+		cd rally && sudo ./install_rally.sh
+		scp packtpub@cc01:/openrc .
+		source openrc admin admin
+		注册openstack 到rally:
+			rally deployment create --name existing--fromenv
+		查看可用的endpoint:
+			rally deployment check
+			
+				
+重点：可以用于自动化
+crudini: 可以操作ini 和 conf文件
+	下载地址：  http://www.pixelbeat.org/programs/crudini/
+	升级一个存在的配置文件：
+		crudini --set <Config_File_Path> <Section_Name> <Parameter> <Value>
+		例： 更新/etc/nova.conf
+			crudini --set /etc/nova/nova.conf database connection msyql://nova:openstack@192.168.47.47/nova 
+			
+			
+	
+	
+	
+Message Queue: 魔力交换机(hub)
+Asymmetric clustering(非对称): 一般yoga在高可用和 数据库、消息队列、文件的读/写
+Symmertric clustering: 所有节点是活动的，一般为负载均衡
+	

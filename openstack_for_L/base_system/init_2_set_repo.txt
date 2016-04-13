@@ -1,0 +1,11 @@
+增加源：
+	yum install centos-release-openstack-liberty
+更新系统：
+	yum upgrade
+安装openstackclinet:
+	yum install python-openstackclient
+如果启用selinux, 安装oepnstack-selinux自动管理openstack service:
+	yum install openstack-selinux
+
+禁止自动更新：
+	mv /bin/yum /bin/yum.bak

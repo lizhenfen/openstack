@@ -1,0 +1,14 @@
+mysql:3306
+ntp:123
+qpid:5672
+keystone: 
+		服务端口：5000 
+		管理端口：35357
+		endpoint:http://controller:35357/v2.0
+glance；
+		registry端口： 9191
+		api端口：9292
+		endpoint: http://controller:9292    #后面没有v2
+nova: 
+	端口：8774
+	endpoint: http://controller:8774/v2/%\(tenant_id\)s    #后面没有v2

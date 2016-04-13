@@ -1,0 +1,8 @@
+打开命令终端，更改宿主机的目录为workstation软件所有的目录： 一般为C:\Program Files\VMware\VMware Workstation\
+命令：
+	vmware-vdiskmanager
+		-c:创建虚拟磁盘。 必须使用-a -s -t
+		-r:转换已经指定类型的虚拟磁盘的类型，输出创建一个新的虚拟磁盘。 必须使用-t 指定转换成的磁盘类型，并且指定新磁盘名
+		例：
+			vmware-vdiskmanager -r sourceDisk.vmdk -t 0 targetDisk.vmdk
+			qemu-img convert -f vmdk  -O qcow2 targetDisk.vmdk  targetDisk.qcow2

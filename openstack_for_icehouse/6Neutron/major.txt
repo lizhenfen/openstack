@@ -1,0 +1,10 @@
+root_helper:
+	提供组织root权限滥用的安全保护机制，防止在主机上执行openstack相关的命令，而不是直接作为root执行命令
+	openstack使用 sudo neutron-rootwrap /etc/neutron/rootwrap.conf <command>
+	随着环境增长，执行API变慢，直接使用suoders替代
+	修改(/etc/neutron/neutron.conf):
+		#Change to "sudo" to skip the filtering and just run the command directly
+		# root_helper = sudo neutron-rootwrap /etc/neutron/rootwrap.conf
+		root_help = sudo 
+		重启neutron-server服务
+	

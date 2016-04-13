@@ -1,0 +1,96 @@
+安装：
+	yum install openstack-keystone python-keystoneclient -y
+	[root@controller ~]# rpm -ql openstack-keystone
+	/etc/keystone  #此目录为keystone的配置文件所在的目录
+	/etc/keystone/default_catalog.templates  # 目录列表，已不使用
+	/etc/keystone/keystone.conf   # 主配置文件
+	/etc/keystone/logging.conf    # 日志配置文件
+	/etc/keystone/policy.json	  # role-based access policies
+			API 访问服务时，服务策略引擎使用适当的已定义的策略去检测是否允许
+			策略文件的任何更改都是立即生效，服务运行时有允许定义新的策略
+			策略定义的模板： "<target>":"<rule>", target alse named:"action"
+	/etc/logrotate.d/openstack-keystone
+	/etc/rc.d/init.d/openstack-keystone
+	/usr/bin/keystone-all
+	/usr/bin/keystone-manage
+	/usr/bin/openstack-keystone-sample-data
+	/usr/lib/sysctl.d/openstack-keystone.conf
+	/usr/share/doc/openstack-keystone-2014.1.5
+	/usr/share/doc/openstack-keystone-2014.1.5/LICENSE
+	/usr/share/doc/openstack-keystone-2014.1.5/README.rst
+	/usr/share/keystone
+	/usr/share/keystone/daemon_notify.sh
+	/usr/share/keystone/keystone-dist-paste.ini
+	/usr/share/keystone/keystone-dist.conf
+	/usr/share/keystone/keystone.wsgi
+	/usr/share/keystone/openstack-keystone.upstart
+	/usr/share/keystone/sample_data.sh
+	/usr/share/keystone/wsgi-keystone.conf
+	/usr/share/man/man1/keystone-all.1.gz
+	/usr/share/man/man1/keystone-manage.1.gz
+	/var/lib/keystone
+	/var/log/keystone
+	/var/run/keystone
+
+配置：
+	#/etc/keystone/keystone.conf  连接数据库
+	[database]
+	connection = mysql://keystone:keystone@ip_addr/keystone
+	
+	#创建 keystone 数据库
+	create database keystone;
+	# 在数据库中 创建keystone表 和 keystone 用户
+	grant all privileges on keystone.* to 'keystone'@'localhost' identified by 'keystone';
+	grant all privileges on keystone.* to 'keystone'@'controller' identified by 'keystone';
+	grant all privileges on keystone.* to 'keystone'@'%' identified by 'keystone';
+	# 同步数据库 数据
+	keystone-manage db_sync
+	#验证 数据库是否同步成功
+	[root@controller glance]# mysql -uroot -popenstack -e "use keystone;" -e "show tables;"
+	+-----------------------+
+	| Tables_in_keystone    |
+	+-----------------------+
+	| assignment            |
+	| credential            |
+	| domain                |
+	| endpoint              |
+	| group                 |
+	| migrate_version       |
+	| policy                |
+	| project               |
+	| region                |
+	| role                  |
+	| service               |
+	| token                 |
+	| trust                 |
+	| trust_role            |
+	| user                  |
+	| user_group_membership |
+	+-----------------------+
+	
+	# /etc/keystone/keystone.conf  配置admin_token(openssl rand -hex 10 > token.txt   #生成复杂秘钥)
+	admin=`cat token.txt`
+	#设置消息服务的 主机名
+	qpid_hostname=controller
+	
+	
+	#默认是PKI认证
+	keystone-manage pki_setup --keystone-user keystone --keystone-group keystone
+		使用配置文件：/etc/keystone/ssl/certs/openssl.conf
+	#修改 认证文件夹的 用户名和密码
+	chown -R keystone:keystone /etc/keystone/ssl/
+	# 去除 其他用户的所有权限
+	chmod -R o-rwx /etc/keystone/ssl/
+	
+	# 修改 日志文件的权限
+	#如果未做此项，keystone服务无法正常启动
+	chown -R keystone:keystone /var/log/keystone/
+启动：
+	service openstack-keystone start
+	查看状态：/etc/init.d/openstack-keystone status
+	查看端口： netstat -ltnp | grep -E "35357|5000"
+开机启动：	
+	 chkconfig openstack-keystone on
+	
+	
+	

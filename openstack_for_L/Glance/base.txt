@@ -1,0 +1,8 @@
+功能：
+	discover(发现), register(注册), retrieve vitual images(获取镜像)
+	提供REST API 查询虚拟机元数据
+模块：
+	glance-api:
+	glance-registry: 私有服务, 不能暴露给客户, 存储元数据
+	database: 存储 元数据
+	Storage repository for image files: 存储镜像文件

@@ -1,0 +1,14 @@
+安装数据库服务：	
+	yum install mariadb mariadb-server python2-PyMySQL
+配置文件(/etc/my.cnf.d/)
+	cp server.cnf openstack-service.cnf 
+	[mysqld]
+	bind-address = 10.0.0.11
+	default-storage-engine = innodb
+	innodb_file_per_table
+	collation-server = utf8_general_ci
+	init-connect = 'SET NAMES utf8'
+	character-set-server = utf8
+启用服务：
+	systemctl start mariadb 
+	

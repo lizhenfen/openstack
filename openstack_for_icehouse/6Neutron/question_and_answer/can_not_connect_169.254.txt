@@ -1,0 +1,32 @@
+参考地址：(neutron router):http://techbackground.blogspot.ie/2013/06/metadata-via-quantum-router.html
+		  (Zeroconf):http://blog.chinaunix.net/uid-20644632-id-2172223.html
+		  (dhcp_agent):http://techbackground.blogspot.ie/2013/06/metadata-via-dhcp-namespace.html
+		  (metadata在opentack):http://blog.csdn.net/lynn_kong/article/details/9115033
+
+Metadata直接连接到 DHCP namespace:
+	dhcp_agent.ini:
+		enable_isolated_metadata = True     
+		enable_metadata_network = True		
+	#解析： 此处使用了dhcp的options 121
+Metadata连接到 Neutron router:
+	请求169.254.169.254的过程：	
+		1. 虚拟机请求http://169.254.169.254/openstack，没有特殊的路由，直接发送到网关
+			查看当前地址： ip -4 addr show dev eth0
+		2. 使用namespace,在网络节点含有：对应的iptables规则和网路设备
+			查看规则： ip netns exec qrouter-xxx iptables-save 
+				-A quantum-l3-agent-PREROUTING -d 169.254.169.254/32 -p tcp -m tcp --dport 80 -j REDIRECT --to-ports 9697  
+				-A quantum-l3-agent-INPUT -d 127.0.0.1/32 -p tcp -m tcp --dport 9697 -j ACCEPT
+			虚拟网关设备： ip netns exec sqrouter-xxx ip -4 addr show qr-xxx
+		3. iptables规则重定向到本地9697，查看端口状态：
+				ip netns exec qrouter-xxx netstat -lntp | grep 9697
+		4. 查看此进程的详细信息：
+			ps -f --pid 13249 | fold -s -w 85
+		5. 网络节点监听 /var/lib/quantum/metadata_proxy
+			netstat -lxp | grep metadata    
+			 ps -f --pid 21025 | fold -s
+		6. Nova的metadata service是随着nova-api启动的，会同时启动三个服务：ec2, osapi_compute, metadata
+	虚拟机测试： curl http://169.254.169.254/openstack
+route : 显示当前的路由，
+	link-local: 凡是路由中包含此条目的都不应该被转发
+	禁用link-local：  
+		/etc/sysocnfig/network: 增加  NOZEROCONF=yes

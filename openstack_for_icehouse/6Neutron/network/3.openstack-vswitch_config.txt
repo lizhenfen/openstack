@@ -1,0 +1,13 @@
+启动：
+	service openvswitch start
+	chkconfig openvswitch on
+创建 内部桥接 接口;
+	ovs-vsctl add-br br-int
+创建 外部桥接 接口：
+	ovs-vsctl add-br br-ex
+绑定 外部桥接 接口 到 物理 网络
+	ovs-vsctl add-port br-ex p3p2   ##注意： p3p2 是 实际的物理网卡的名称
+	
+## 可能 需要禁用 Generic Receive Offload(GRO)
+## 临时禁用
+	ethtool -K INTERFACE_NAME gro off

@@ -1,0 +1,40 @@
+用途： 
+	认证, 授权, 服务目录
+组件：
+	Server(服务)：认证服务器, 通过RESTful 接口提供认证和授权
+	Drivers(驱动): 集成到认证服务器的后台驱动或服务,访问认证信息
+	Modules(模块): 中间件
+	注册所有的服务到openstack的keystone
+安装和配置：
+	1. 创建数据库
+		create database keystone;
+		授权：
+			grant all on keystone.* to keystone@'localhost' identified by 'keystone';
+			grant all on keystone.* to keystone@'%' identified by 'keystone';
+	2. 安装keystone组件
+		注意：不再使用eventlet提供服务，而是使用apache的http提供服务(5000,35357,mod_wsgi),禁用keystone
+		yum install openstack-keystone httpd mod_wsgi memcached python-memcached
+	3. 启用memcache服务
+		systemctl start memcached
+		systemctl enable memcached
+	4. 配置keystone.conf
+		[default]
+		admin_token = 
+		verbose = True
+		[database]
+		connection = mysql://keystone:keystone@controller/keystone
+		[memcache]
+		servers = controller:11211
+		[token]
+		provider=uuid
+		driver = memcache
+		[revoke]
+		driver = sql
+	5. 同步
+		su -s /bin/sh -c "keystone-manage db_sync" keystone
+	6. 配置http服务(/etc/httpd/conf/httpd.conf)
+		ServerName controller
+		vi /etc/httpd/conf.d/wsgi-keystone.conf   #
+	7. 修改/var/log/keystone目录权限   #官网未给出
+		chown -R keystone:keystone /var/log/keystone
+		

@@ -1,0 +1,52 @@
+安装：
+	yum install openstack-nova-compute -y
+配置：
+	#配置文件/etc/nova/nova.conf
+	# 数据库连接
+	[database]
+	connection=mysql://nova:nova@controller/nova
+	#消息队列服务QPID
+	qpid_hostname=controller
+	rpc_backend=qpid
+	# 认证服务
+	auth_strategy=keystone
+	[keystone_authtoken]
+	auth_host=controller
+	auth_port=35357
+	auth_protocol=http
+	auth_uri=http://controller:5000
+	admin_user=nova
+	admin_password=nova
+	admin_tenant_name=service
+	#配置VNC服务
+	my_ip=192.168.27.233
+	vncserver_listen=0.0.0.0
+	vncserver_proxyclient_address=192.168.27.233
+	vnc_enabled=true
+	novncproxy_base_url=http://controller:6080/vnc_auto.html
+	# 指定 image 镜像主机
+	glance_host=controller
+	# 指定虚拟机
+	[libvirt]
+	virt_type=kvm  #此项为默认配置。若不支持硬件虚拟化，可改为qemu
+
+#rabbit消息队列配置
+rpc_backend=rabbit
+rabbit_host=controller
+rabbit_userid=root
+rabbit_password=openstack
+	
+启动：
+	/etc/init.d/libvirtd start      #service libvirtd start
+	/etc/init.d/libvirtd status
+	/etc/init.d/messagebus start     #service messagebus start
+	/etc/init.d/messagebus status
+	/etc/init.d/openstack-nova-compute start     #service openstack-nova-compute start
+	/etc/init.d/openstack-nova-compute status
+开机启动：
+	echo "#start kvm " >> /etc/rc.local     #chkconfig libvirtd on
+	echo "/etc/init.d/libvirtd start" >> /etc/rc.local 
+	echo "#start messagebus " >> /etc/rc.local
+	echo "/etc/init.d/messagebus start" >> /etc/rc.local # chkconfig messagebus on
+	echo "#start openstack-nova-compute" >> /etc/rc.local
+	echo "/etc/init.d/openstack-nova-compute start" >> /etc/rc.local  #chkconfig openstack-nova-compute on

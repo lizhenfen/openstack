@@ -1,0 +1,7 @@
+安装
+	yum install mongodb-server mongodb
+配置文件(/etc/mongod.conf)
+	bind_ip =
+	smallfiles = true   #默认1G的日志文件,启用此值后每个日志128M, 最大512M
+# systemctl enable mongod.service
+# systemctl start mongod.service

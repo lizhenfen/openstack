@@ -1,0 +1,28 @@
+参考文档：http://www.choudan.net/2013/12/24/OpenStack%E5%B9%B6%E8%A1%8C%E6%80%A7%E8%83%BD%E5%8A%A0%E9%80%9F(%E7%BF%BB%E8%AF%91).html
+nova-api:  通过增加此值来提升API的性能
+	osapi_compute_workers=40
+nova-conductor： 增加进程数
+	use_local=false   #false：compute使用condurtor， 当为true时compute将直接连接数据库
+	workers=40
+取消rootwrap来降低消耗：
+	rootwrap主要用来使 openstack的某些命令以root方式运行
+	设置 root_helper=sudo 代替 下面文件
+		/etc/nova/nova.conf
+		/etc/quantum/quantum.conf
+		/etc/quantum/l3_agent.ini
+		/etc/quantum/dhcp_agent.ini
+		/etc/quantum/metadata_agent.ini
+		/etc/quantum/plugins/openvswitch/ovs_quantum_plugin.ini 
+	修改/etc/sudoers文件：
+	  懒惰的方式： openstack用户无密码使用所有命令
+		nova ALL=(ALL) NOPASSWD: ALL
+		quantum ALL=(ALL) NOPASSWD: ALL
+	livirted的默认限制的数量：/etc/libvirt/libvirtd.conf
+		max_clients = 40
+		max_workers = 40
+		max_requests = 40
+		max_client_requests = 40
+	libvirtd使用cgroups来限制虚拟机的使用
+		umount所有的cgroup mounts来禁止cgroup。在/proc/mounts中有详细的mounts points列表
+	禁止libvirt安全驱动：
+		/etc/libvirt/qemu.conf 中设置security_driver="none"

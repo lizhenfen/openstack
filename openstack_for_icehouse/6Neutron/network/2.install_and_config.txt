@@ -1,0 +1,108 @@
+安装：
+	yum install openstack-neutron openstack-neutron-ml2 openstack-neutron-openvswitch -y
+	
+配置：
+	*****************************************************************************************
+	# /etc/neutron/neutron.conf
+	# 设置 Keystone 认证
+	auth_strategy = keystone
+	[keystone_authtoken]
+	auth_uri=http://controller:5000
+	auth_host = controller
+	auth_port = 35357
+	auth_protocol = http
+	admin_tenant_name = service
+	admin_user = neutron
+	admin_password = neutron
+	
+	# 配置 消息队列 服务
+	rpc_backend=neutron.openstack.common.rpc.impl_qpid
+	qpid_hostname = controller
+	# 配置 网络核心 插件
+	core_plugin = ml2
+	service_plugins = router
+	
+	####推荐：
+		verbose = True  #方便解决问题，查找问题
+	**************************************************************************************	
+	**************************************************************************************	
+	# 配置 三层 路由 功能
+	## /etc/neutron/l3_agent.ini
+	interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+	use_namespaces = True
+	**************************************************************************************
+	**************************************************************************************
+	# /etc/neutron/dhcp_agent.ini
+	dnsmasq_config_file = /etc/neutron/dnsmasq-neutron.conf
+	## /etc/neutron/dnsmasq-neutron.conf
+	dhcp-option-force=26,1454
+	**************************************************************************************
+	**************************************************************************************
+	# 配置metadata_agent.ini
+	auth_url = http://controller:5000/v2.0
+	auth_region = RegionOne
+	admin_tenant_name = service
+	admin_user = neutron
+	admin_password = neutron
+	nova_metadata_ip = controller
+	metadata_proxy_shared_secret = neutron_pass
+	
+	********************************************************************************************
+	*******************************************************************************************
+	# 在 controller  节点上 配置 compute 节点使用 metadata_agent
+	# /etc/nova/nova.conf
+	service_neutron_metadata_proxy= true
+	neutron_metadata_proxy_shared_secret=neutron_pass
+	# 重启 openstack-nova-api
+	service openstack-nova-api restart
+	****************************************************************************************
+	***************************************************************************************
+	# 配置网络使用 ml2插件  网络节点
+	# /etc/neutron/ml2/ml2_conf.ini
+	type_drivers = gre
+	tenant_network_types = gre
+	mechanism_drivers = openvswitch
+	tunnel_id_ranges = 1:1000
+	##以下选项为 新建
+	[ovs]
+	local_ip = 192.168.27.243   # 此IP 为 tunnel 地址
+	tunnel_type = gre
+	enable_tunneling = True
+	[securitygroup]
+	firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+	enable_security_group = True
+	
+	##  配置L3 代理
+	interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+	use_namespaces = True
+	
+	## 配置DHCP 代理
+	interface_driver = neutron.agent.linux.interface.OVSInterfaceDriver
+	dhcp_driver = neutron.agent.linux.dhcp.Dnsmasq
+	use_namespaces = True
+	
+	
+	## 配置Metadata 代理
+	auth_url = http://controller:5000/v2.0
+	auth_region = regionOne
+	admin_tenant_name = service
+	admin_user = neutron
+	admin_password = neutron
+	nova_metadata_ip = controller
+	metadata_proxy_shared_secret = neutron_pass
+	
+
+## 网卡设置
+DEVICE=p3p2
+ONBOOT=yes
+BOOTPROTO=none
+PROMISC=yes
+# br-ex 桥接网络
+DEVICE=br-ex
+TYPE=Bridge
+ONBOOT=no
+BOOTPROTO=none
+
+## 设置 外网 地址
+ ip link set br-ex up
+ 

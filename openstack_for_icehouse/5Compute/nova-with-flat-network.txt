@@ -1,0 +1,2 @@
+地址：https://github.com/ChaimaGhribi/Icehouse-Installation-Flat-Networking
+https://github.com/ChaimaGhribi/Icehouse-Installation-Flat-Networking/blob/master/OpenStack-Icehouse-Installation-Nova-Network.rst

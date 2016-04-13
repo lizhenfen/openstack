@@ -1,0 +1,132 @@
+keystone认证：
+	UUID(Universally Unique IDentifier ):
+		Keystone would:
+			Generate a UUID token.
+			Store the UUID token in its backend.
+			Send a copy of the UUID token back to the client.
+		The client would cache the token.
+		The UUID would be then passed along with each API call by the client.
+		Upon each user request, the API endpoint would send this UUID back to Keystone for validation.
+		Keystone would take the UUID and match it against its auth backend (check UUID string, expiration date).
+		Keystone would return “success”(200) or “failure”(401) message to the API endpoint.
+	PKI(Public Key Infrastructure )：
+		command:
+			keystone-manage pki_setup  #generate the following files
+				CA private key:
+					openssl genrsa -out /etc/keystone/ssl/certs/cakey.perm 1024 --config /etc/keystone/ssl/certs/openssl.conf
+				CA certificate:
+					openssl req -new -x509 --extensions v3_ca -passin pass:None -key /etc/keystone/ssl/certs/cakey.perm -out \
+					/etc/keystone/ssl/certs/ca.perm -days 3650 -config /etc/keystone/ssl/certs/openssl.conf -subj /C=US/ST=Unset/\
+					L=Unset/O=Unset/CN=www.example.com 
+				Signing priviate key:
+					openssl genrsa -out /etc/keystone/ssl/private/signing_key.pem 1024 -config /etc/keystone/ssl/certs/openssl.conf 
+				Signing certificate:
+					openssl req -key /etc/keystone/ssl/private/signing_key.perm -new -nodes -out /etc/keystone/ssl/certs/req.perm \
+					-config /etc/keystone/ssl/certs/openssl.conf -subj /C=US/ST=Unset/L=Unset/O=Unset/CN=www.example.com 
+					openssl ca -batch -out /etc/keystone/ssl/certs/signing_cert.pem -config /etc/keystone/ssl/certs/openssl.conf \
+					-infiles /etc/keystone/ssl/certs/req.pem 
+		with PKI now keystone uses CMS(Cryptographic Message Syntax),produce CMS token out of following data:
+			Service catalog ; User role ; Metadata
+			A example of the input data follows:
+			{
+			   "access": {
+				   "metadata": {
+					   ....metadata goes here....
+				   },
+				   "serviceCatalog": [
+					   ....endpoints goes here....
+				   ],
+				   "token": {
+					   "expires": "2013-05-26T08:52:53Z",
+					   "id": "placeholder",
+					   "issued_at": "2013-05-25T18:59:33.841811",
+					   "tenant": {
+						   "description": null,
+						   "enabled": true,
+						   "id": "925c23eafe1b4763933e08a4c4143f08",
+						   "name": "user"
+					   }
+				   },
+				   "user": {
+					   ....userdata goes here....
+				   }
+			   }
+			}
+			the command used for this is:
+				openssl cms -sign -signer /etc/keystone/ssl/certs/signing_cert.pem -inkey /etc/keystone/ssl/private\signing_key.pem \
+				-outform PEM -nosmimecap 
+			PKI enable Openstack API endpoints to conduct offline vertification of token validity bu checking Keystone's signatue:
+				Toke signatue ; Token expiration date ; Whether the token has been delete(revoked)
+			Check token signature:
+				all of the API endpoints need Keystone certs, these files can be obtained from keystone service:
+					curl http://[KEYSTONE IP]:35357/v2.0/certificates/signing
+					curl http://[KEYSTONE IP]:35357/v2.0/certificates/ca
+				if the API service cannot find these files in their local disk ,they will  automakelly download ,\
+				the following command is used to vertify the signing on the token:
+					openssl cmd -verify -certife /tmp/keystone-signing-nova/signing_cert.pem -CAfile /tmp/keystone-signing-nova/cacert.perm\
+					-inform PEM -nosmimecap -nosmimecap -nodetach -nocerts -noattr < cms_token
+				if the signatue is valid, the above command returns the metadata contained in CMS 
+			Check token expiration date:
+				one of the extracted metadata is token's expiration date ,which is compared with current time
+			Handling deleted token:
+				the deletion of tokens is endforced bu putting a given token onto a revocation list within keystone CA.by default,this list is being\
+				updated(pull from keystone) by API endpoints every second from the following URL:
+					curl http://[KEYSTONE IP]:35357/v2.0/tokens/revoked
+				the form of the list is a plain json file:
+					{
+					   "revoked": [
+						   {
+							   "expires": "2013-05-27T08:31:37Z",
+							   "id": "aef56cc3d1c9192b0257fba1a420fc37"
+						   }
+						…
+					   ]
+					}
+			
+	
+	On top of that, each API endpoint holds a copy of Keystone’s:
+		Signing certificate
+		Revocation list
+		CA certificate
+		
+	Notice:
+		PKI does not gurantee privacy of the tokens. it is only used for signing, and not encrytion. you should secure all of \
+		the API endpoints using the https protocol
+	--------------------------------------------------------------------------------------------------------------------------
+	
+	a single-level CA:
+		Create the keypair of root:
+			[root@controller ca]# openssl genrsa -des3 --out root-ca.key 1024  
+		Use the keypair to sign itself:
+			[root@controller ca]# openssl req -new -x509 -days 3650 -key root-ca.key -out root-ca.cert  #it can -config openssl.cnf
+			notice: don't write email
+		View cert:
+			[root@controller ca]# openssl x509 -noout -text -in root-ca.cert
+	Using the root CA to signing Certificates:
+		create a key and a certificate signing request :
+			openssl req -newkey rsa:1024 -keyout user.key -config openssl.cnf -out user.req 
+		Sign it ,remember the signing key passwd:
+			openssl ca -config openssl.cnf -out user.cert -infiles user.req 
+	Hosts certificates have the hostname as CN and email of requester:
+		openssl req -newkey rsa:1024 -keyout host_name.key -nodes -config openssl.cnf -out host_name.req 
+		openssl ca -config openssl.cnf -out host_name.cert -infiles host_name.req 
+Muti-level CA:
+	Create CA root key and self-signed certificate 
+	openssl genrsa -des3 -out root-ca.key 1024 
+	openssl req -new -x509 -days 3650 -key root-ca.key -out root-ca.cert -config openssl.cnf 
+	create the keypair for the signing key:
+		openssl genrsa -des3 -out signing-ca-1.key 1024
+	signign it with hte private key just created ,requet:
+		openssl req -new -days 1095 -key signing-ca-1 -out signing-ca-1.csr -config openssl.cnf 
+	signing the request to specify the section in the altered openssl.cnf :
+		openssl ca -config openssl.cnf -name CA_root -extensions v3_ca -out signing-ca-1.crt -infiles signing-ca-1.csr 
+	Users
+	User certificates have the user name as the CN, and their email address. OpenSSL allows you to create a key and a certificate signing request in one step:
+	openssl req -newkey rsa:1024 -keyout zmiller.key -config openssl.cnf -out zmiller.req
+	Then sign it, remembering the signing key password:
+	openssl ca -config openssl.cnf -out zmiller.crt -infiles zmiller.req
+	Hosts
+	Host certificates have the hostname as the CN (this is required for Globus), and the email address of the requester.
+	openssl req -newkey rsa:1024 -keyout host_omega.key -nodes -config openssl.cnf -out host_omega.req
+	openssl ca -config openssl.cnf -out host_omega.crt -infiles host_omega.req
+	

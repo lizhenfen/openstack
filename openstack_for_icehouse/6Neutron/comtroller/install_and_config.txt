@@ -1,0 +1,96 @@
+安装：
+	yum install openstack-neutron openstack-neutron-ml2 python-neutronclient -y
+配置：
+	# 创建数据库及用户
+	create database neutron
+	grant all privileges on neutron.* to 'neutron'@'localhost' identified by 'neutron';
+	grant all privileges on neutron.* to 'neutron'@'%' identified by 'neutron';
+	
+	# 创建 认证用户 
+	keystone user-create --name=neutron --pass=neutron
+	# 绑定 用户和 角色
+	keystone user-role-add --user=neutron --role=admin --tenant=service
+	# 创建服务
+	 keystone service-create --name=neutron --type=network --description="Openstack Neutron"
+	 # 创建 访问点 的API
+	  keystone endpoint-create --service=neutron \
+							   --publicurl=http://controller:9696 \
+							   --adminurl=http://controller:9696 \
+							   --internalurl=http://controller:9696
+	
+	# 连接数据库
+	# /etc/neutorn/neutron.conf
+	[database]
+	connection=mysql://neutron:neutron@controller/neutron
+	
+	# 配置 keystone 认证
+	auth_strategy = keystone
+	[keystone_authtoken]
+	auth_uri=http://controller:5000
+	auth_host = controller
+	auth_port = 35357
+	auth_protocol = http
+	admin_tenant_name = service
+	admin_user = neutron
+	admin_password = neutron
+	
+	#配置消息队列服务
+	rpc_backend=neutron.openstack.common.rpc.impl_qpid
+	qpid_hostname = controller
+	
+	# 配置 网络变更 通知 计算节点 服务
+	notify_nova_on_port_status_changes = True
+	notify_nova_on_port_data_changes = True
+	nova_url = http://controller:8774/v2
+	nova_admin_username = nova
+	nova_admin_tenant_id = ${keystone tenant-list | awk '/service/ {print $2}'}
+	nova_admin_password = nova
+	nova_admin_auth_url = http://controller:35357/v2.0
+	
+	# 配置 网络 所需插件的 驱动
+	core_plugin = ml2
+	service_plugins = router
+	Example: service_plugins = router,firewall,lbaas,vpnaas,metering
+	
+	
+	## 以下配置具体的 插件名称及所使用的协议
+	## /etc/neutron/plugin/ml2
+	#ml2_conf.ini
+	type_drivers = gre
+	tenant_network_types = gre
+	mechanism_drivers = openvswitch
+	[ml2_type_gre]
+	tunnel_id_ranges = 1:1000
+	[securitygroup]
+	firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+	enable_security_group = True
+	
+	
+	## 配置  compute 使用 neutron 网络
+	network_api_class=nova.network.neutronv2.api.API
+	neutron_url=http://controller:9696
+	neutron_admin_username=neutron
+	neutron_admin_password=neutron
+	neutron_admin_tenant_name=service
+	neutron_admin_auth_url=http://controller:35357/v2.0
+	neutron_auth_strategy=keystone
+	linuxnet_interface_driver=nova.network.linux_net.LinuxOVSInterfaceDriver
+	firewall_driver=nova.virt.firewall.NoopFirewallDriver
+	security_group_api= neutron
+	#连接 配置文件
+	ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+	
+	service_neutron_metadata_proxy= true
+	neutron_metadata_proxy_shared_secret=neutron_pass
+
+启动：
+	service openstack-nova-api restart
+	service openstack-nova-scheduler restart
+	service openstack-nova-conductor restart
+	service neutron-server start
+	
+开机启动：
+	chkconfig neutron-server on
+	
+验证：
+	查看数据库中是否有表

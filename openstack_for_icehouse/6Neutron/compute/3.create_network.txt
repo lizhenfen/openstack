@@ -1,0 +1,9 @@
+控制节点：
+	. keystone_admin.sh
+	#创建 公共网络
+	neutron net-create ext-net --shared --router:external=True
+	## 要使用公共网络，必须先创建 子网络
+	neutron subnet-create ext-net --name=ext-subnet --allocation-pool start=192.168.31.220,end=192.168.31.240
+	--disable-dhcp --gateway=192.168.31.254 192.168.31.0/24
+	
+	## 可 创建 普通用户的 网络

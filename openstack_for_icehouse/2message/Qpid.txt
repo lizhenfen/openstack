@@ -1,0 +1,9 @@
+安装：
+	yum install qpid-cpp-server
+修改配置文件：
+	vi /etc/qpidd.conf 
+	auth = no   #取消 认证
+启动服务：
+	service qpidd start
+开机启动：
+	chkconfig qpidd on

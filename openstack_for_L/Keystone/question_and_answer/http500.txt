@@ -1,0 +1,4 @@
+openstack service create 创建服务时，提示:   Internal Server Error (HTTP 500)
+	原因查找： /var/log/http/keystone-error.log  
+	/var/log/keystone 权限不对, 拒绝写入日志
+	

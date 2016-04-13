@@ -1,0 +1,19 @@
+关闭Selinux:
+	vi /etc/selinux/config
+	SELINUX=permissive
+
+清空防火墙：
+	iptables -F
+	iptables -L #查看iptables规则
+	service iptables save
+
+更改主机名;
+		hostname [name]  #临时生效
+		/etc/sysconfig/network   #永久生效
+		
+host文件:  # 均为最后一个IP地址
+	/etc/hosts
+	192.168.27.253 controller
+	192.168.27.243 network
+	192.168.27.233 compute
+  注意：注释127.0.0.1的解析

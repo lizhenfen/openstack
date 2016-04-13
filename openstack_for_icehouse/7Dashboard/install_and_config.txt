@@ -1,0 +1,22 @@
+ 安装：
+	yum install memcached python-memcached mod_wsgi openstack-dashboard -y
+配置：
+	## /etc/openstack-dashboard/local_settings
+	CACHES = {
+    'default': {
+        'BACKEND' : 'django.core.cache.backends.memcached.MemcachedCache',
+        'LOCATION' : '127.0.0.1:11211',
+    }
+	}
+	#ALLOWED_HOSTS 测试时 ，最好注释此项
+	ALLOWED_HOSTS = ['localhost', 'my-desktop']
+	OPENSTACK_HOST = "controller"
+	
+	# selinux 允许 http
+	setsebool -P httpd_can_network_connect on
+	
+启动：
+	service httpd start
+	service memcached start
+	chkconfig httpd on
+	chkconfig memcached on

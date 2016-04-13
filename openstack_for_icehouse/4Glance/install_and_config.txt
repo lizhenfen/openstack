@@ -1,0 +1,131 @@
+安装：
+	yum install openstack-glance python-glanceclient -y
+	/etc/glance
+	/etc/glance/glance-api.conf
+	/etc/glance/glance-cache.conf
+	/etc/glance/glance-registry.conf
+	/etc/glance/glance-scrubber.conf
+	/etc/glance/policy.json
+	/etc/glance/schema-image.json
+	/etc/logrotate.d/openstack-glance
+	/etc/rc.d/init.d/openstack-glance-api
+	/etc/rc.d/init.d/openstack-glance-registry
+	/etc/rc.d/init.d/openstack-glance-scrubber
+	/usr/bin/glance-api
+	/usr/bin/glance-cache-cleaner
+	/usr/bin/glance-cache-manage
+	/usr/bin/glance-cache-prefetcher
+	/usr/bin/glance-cache-pruner
+	/usr/bin/glance-control
+	/usr/bin/glance-manage
+	/usr/bin/glance-registry
+	/usr/bin/glance-replicator
+	/usr/bin/glance-scrubber
+	/usr/share/doc/openstack-glance-2014.1.5
+	/usr/share/doc/openstack-glance-2014.1.5/README.rst
+	/usr/share/glance/daemon_notify.sh
+	/usr/share/glance/glance-api-dist-paste.ini
+	/usr/share/glance/glance-api-dist.conf
+	/usr/share/glance/glance-cache-dist.conf
+	/usr/share/glance/glance-registry-dist-paste.ini
+	/usr/share/glance/glance-registry-dist.conf
+	/usr/share/glance/glance-scrubber-dist.conf
+	/usr/share/glance/openstack-glance-api.upstart
+	/usr/share/glance/openstack-glance-registry.upstart
+	/usr/share/glance/openstack-glance-scrubber.upstart
+	/usr/share/man/man1/glance-api.1.gz
+	/usr/share/man/man1/glance-cache-cleaner.1.gz
+	/usr/share/man/man1/glance-cache-manage.1.gz
+	/usr/share/man/man1/glance-cache-prefetcher.1.gz
+	/usr/share/man/man1/glance-cache-pruner.1.gz
+	/usr/share/man/man1/glance-control.1.gz
+	/usr/share/man/man1/glance-manage.1.gz
+	/usr/share/man/man1/glance-registry.1.gz
+	/usr/share/man/man1/glance-replicator.1.gz
+	/usr/share/man/man1/glance-scrubber.1.gz
+	/var/lib/glance
+	/var/log/glance
+	/var/run/glance
+配置：
+	# 进入/etc/glance/目录，修改 glance-api.conf  和 glance-registry.conf
+	# 修改数据库 连接
+	[database]
+	connection=mysql://glance:glance@localhost/glance
+	# 创建服务 所需用户
+	keystone user-create --name=glance --pass=glance --email='743564797@qq.com'
+	# 绑定 用户 和 角色
+	keystone user-role-add --user=glance --role=admin --tenant=service
+	# 创建 服务
+	keystone service-create --name=glance --type=image --description="Glance Service"
+	# 创建 访问点 服务 API
+	keystone endpoint-create --service=glance \
+	--publicurl=http://controller:9292 \
+	--adminurl=http://controller:9292 \
+	--internalurl=http://controller:9292
+	#创建 glance 数据库和 用户
+	create database glance;
+	grant all privileges on glance.* to 'glance'@'localhost' identified by 'glance';
+	grant all privileges on glance.* to 'glance'@'controller' identified by 'glance';
+	grant all privileges on glance.* to 'glance'@'%' identified by 'glance';
+	# 第一种同步数据到数据库方法：
+	glance-manage db_sync
+	查看数据库：
+		#验证 数据库是否同步成功
+		[root@controller glance]# mysql -uroot -popenstack -e "use glance;" -e "show tables;"
+		+------------------+
+		| Tables_in_glance |
+		+------------------+
+		| image_locations  |
+		| image_members    |
+		| image_properties |
+		| image_tags       |
+		| images           |
+		| migrate_version  |
+		| task_info        |
+		| tasks            |
+		+------------------+
+	
+	# 另一种同步数据办法：
+	openstack-db --init --service glance --password glance
+	注意： 此处会提示警告信息，略过即可
+		/usr/lib64/python2.6/site-packages/Crypto/Util/number.py:57: PowmInsecureWarning: Not using mpz_powm_sec.  You should rebuild using libgmp >= 5 to avoid timing attack vulnerability.
+		_warn("Not using mpz_powm_sec.  You should rebuild using libgmp >= 5 to avoid timing attack vulnerability.", PowmInsecureWarning)
+	
+	#进入/etc/glance/目录，修改 glance-api.conf  和 glance-registry.conf配置keystone认证
+	[DEFAULT] ##在 glance-registry.conf文件中没有此配置
+	auth_strategy=keystone
+	#下面的配置为glance-api.conf  和 glance-registry.conf共有
+		[keystone_authtoken]
+		auth_host=controller
+		auth_port=35357
+		auth_protocol=http
+		admin_tenant_name=service
+		admin_user=glance
+		admin_password=glance
+		# 下面的配置 直接照抄即可  
+		[paste_deploy]
+		flavor=keystone
+	
+	#修改日志文件的权限， 不改此处无法启动
+	chown -R glance:glance /var/log/glance/
+	
+启动服务：
+	service openstack-glance-api start
+	service openstack-glance-registry start
+	chkconfig openstack-glance-api on
+	chkconfig openstack-glance-registry on
+检查服务：
+  状态：
+	/etc/init.d/openstack-glance-api status
+	/etc/init.d/openstack-glance-registry status
+  端口：
+	netstat -ltnp | grep 9191
+	netstat -ltnp | grep 9292
+上传镜像：
+	glance image-create --name="My-cirrors" --disk-format=qcow2 --container-format=bare --is-public=True --progress < /data/image/cirros-0.3.0-x86_64-disk.img 
+	
+性能提升：
+	workers = n # n 值为CPU的核数
+
+	
+	

@@ -1,0 +1,9 @@
+安装消息服务(rabbitmq):
+	yum install rabbitmq-server
+启动：
+	# systemctl enable rabbitmq-server.service
+	# systemctl start rabbitmq-server.service
+增加用户：
+	rabbitmqctl add_user openstack RABBIT_PASS
+为新增用户设置权限：
+	rabbitmqctl set_permissions rabbitmq ".*" ".*" ".*"

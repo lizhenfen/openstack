@@ -1,0 +1,10 @@
+新版时间同步服务器：
+	yum install chrony
+配置文件: /etc/chrony.conf
+	server NTP_SERVER iburst  #修改NTP_SERVER为本地时间服务器
+	allow ip/netmask		  #允许连接到此服务器的子网
+启动：
+	systemctl enable chronyd.service
+	systemctl start chronyd.services
+识别：
+	chronyc sources

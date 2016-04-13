@@ -1,0 +1,303 @@
+安装：
+	yum install docker-io  [centos 6]
+	yum install docker     [centos 7]
+	curl:
+		sudo curl -sSL https://get.docker.io/ | sh
+	wget：
+		wget -qO- https://get.docker.io/ | sh
+启动：
+	service docker start [centos 6]
+	systemctl start docker.service 
+检测是否安装成功：
+	docker version   #查看安装版本
+	docker -D info   #显示更多关于环境变量的信息
+client 和 server 相互联系，推荐： /var/run/docker.sock
+		默认的端口：2375,  #由于安全原因，默认不启动
+		
+下载docker base image:
+	docker pull  
+		-a  #下载所有相关的image
+		
+	测试镜像： docker pull busybox
+	默认总是下载标记latest的镜像
+	指定具体的镜像： <respotory>:<tag>
+	下载第三方镜像： docker pull userid/image_name
+					 docker pull www.domain.com/image_name 
+查询镜像：
+	docker search image_name 
+交互式运行镜像：
+	docker run -i -t busybox [/bin/bash]
+				--rm  #退出后，删除已停止的docker,释放文件系统的空间
+				-d #以守护进程执行
+	ctrl + Q 或 ctrl + P 可以退出终端
+镜像一旦下载完成，可以使用 查看：
+	docker images
+	说明：
+		REPOSITORY: repository或image的名称
+		TAG: 标记
+		IMAGE ID: a unique ID ,64位16进制，一般显示12位
+				--no-trunc 可以显示完整的ID
+		CREATED: 创建时间
+		VIRTUAL SIZE: 镜像的版本 和 大小
+	
+运行第一个应用，输出hello,world
+	docker run busybox echo "hello,world"
+检查文件系统,文件是否增减：
+	C:表示修改
+	A:表示增加
+	D:表示删除
+	docker diff CONTAINER_ID
+高级命令：
+	docker ps 
+		-a #显示所有的docker,正在运行和停止的
+		-q #只显示CONTAINER_ID	
+	docker stop CONTAINER_ID  #关闭正在运行的docker
+	docker start CONTAINER_ID	#启动关闭的docker  -a:附加进去，相等于 docker attach CONTAINER_ID
+	docker pause CONTAINER_ID  #暂停正在运行的docker
+	docker unpause CONTAINER_ID #重启运行暂停的docker
+	docker rm CONTAINER_ID		#默认删除已停止的docker,
+			  -f: 强制删除正在运行的
+	docker rmi CONTAINER_ID  #删除docker imaes显示的镜像
+	docker logs CONTAINER_ID    #显示生成输出
+		-follw: 显示日志直到结尾
+		-t: 显示时间戳
+		--tail=<number of line>  显示指定行的日志
+	docker inspect CONTAINER_ID  #显示images配置的详细信息，json格式
+			--format			#显示指定格式的信息
+			例：docker inspect --format='{{.NetworkSettings.IPAddress}}' CONTAINER_ID
+查看运行的docke:
+	docker ps
+	CONTAINER ID  / IMAGE / COMMAND / CREATED / PORTS / STATUS / NAMES #names可以通过--name指定 
+重新进入运行的docker:
+	docker attach [ID|NAMES]
+生成新的image:
+	docker commit
+提交上传image到 rigistory:
+	docker push
+运行：
+	docker run -t -i busybox:ubuntu-12.04
+	
+测试环境，创建自己的镜像： 
+	1. docker run -i -t ubuntu  #运行
+	2. apt-get update    #更新系统
+	3. which wget        #查看是否有wget命令
+	4. apt-get install wget  -y#安装
+	5. which wget 		#是否安装成功
+	6. docker diff CONTAINER_ID #显示已安装更新的数据
+	7. docker commit CONTAINER_ID <registory_self_define>/<tag_self_define>  #提交创建新的docker
+	
+dockerfile:
+	docker build .  #建立image,生成CONTAINER_ID
+	docker tag CONTAINER_ID TAG_NAME
+	docker build -t TAG_NAME .
+	docker history		#查看image的生成的过程
+	
+	FROM <resipotory>:<tag>  #以某个image为base,可以使用多次
+	MAINTAINER <author ,<email>>  #作者详细信息
+	#.....					 #注释行
+	
+	COPY src1,src2,...  dst 			  #允许从主机复制文件，推荐相对路径  COPY html /var/www/html
+	ADD src1,src2,...  dst  			#可以处理.tar 文件
+	ENV <key> <value>					#设置环境变量
+	USER <uid>|<uname>					#修改容器的启动用户
+	WORKDIR <workpath>					#修改工作目录
+	VOLUME ["<mountpoit>"]				#挂载到docker中的卷,mountpoint是Image中创建好的挂载点，build时使用
+	VOLUME <mountpoint>					#挂载到docker中的卷
+	EXPOSE <port>[/<proto>]				#设置与外部链接的端口
+	RUN command							#build时，执行的命令,未执行时指定/bin/sh -c 
+	RUN ["<commad>","<arg-1>","<arg-2>"]#build时，执行的命令
+	CMD echo ##Hello World!##			#与RUN相同，作用范围更大，可用于更新的镜像，最后一个生效，可以被docker run重写
+	ENTRYPOINT 							#参数通RUN,作用范围与CMD相同，不能被RUN重写，可以在docker run --entrypoint="/bin/sh" 重写
+	ONBUILD								#是另一个iamge基础， ONBUILD ADD config /etc/application
+	
+	.dockerignore文件：
+		指定要排除的文件或 目录，可以是完整名称，也可以是 通配符
+
+Docker Hub:
+	docker login			#命令登录
+	1.创建docker image通过docker commit 或 dockerfile
+	2.运行名称为containerfromhub的container
+		docker run --name="containerfromhub" -t ubuntu  /bin/bash 
+	3.生成新image
+		docker commit -m="NewImage" containerfromhub vinoddany/imagefromhub
+	4.docker login    &&  docker push vinoddany/imagefromhub
+注册到本地regitory:
+	docker run -p 5000:5000 -d registry contanier_ID
+	docker tag contanier_ID localhost:5000/vinoddandy/dockerfile
+REST API for Docker Hub:
+	用户登录：
+		curl --raw -L --user username:password http://index.docker.io/v1/users
+	用户注册：
+		POST /v1/users
+	更新用户：
+		PUT /v1/users/(usename)/
+	创建用户repository:
+		/v1/repositories/(namespace)/(repo_name)/
+	删除用户repository:
+		DELETE /v1/repositories/(namespace)/(repo_name)/
+	创建 library repostory: #仅管理员可用
+		PUT /v1/repositories/(repo_name)/
+	删除 library repostory:
+		DELETE /v1/repositories/(repo_name)/
+	更新用户 repository images:
+		PUT /v1/repositories/(namespace)/(repo_name)/images
+	列出用户 repository images:
+		GET /v1/repositories/(namespace)/(repo_name)/images
+	更新 library repository iamges:
+		PUT /v1/repositories/(repo_name)/images
+	列出 library repository iamges:
+		GET /v1/repositories/(repo_name)/images
+	认证token 为 library repository:
+		PUT /v1/repositories/(repo_name)/auth
+	认证token 为 user repository:
+		PUT /v1/repositories/(namespace)/(repo_name)/auth
+	
+		
+	实例：
+		curl --raw -L -X POST --post301 -H "Accept:application/json" 
+		-H "Content-Type: application/json" --data-ascii '{"email": 
+		"singh_vinod@yahoo.com", "password": "password", "username": 
+		"singhvinod494" }' https://index.docker.io/v1/users
+部署本地registry:
+	apt-get -y install build-essential python-dev libevent-dev python-pip liblzma-dev swig libssl-dev
+	pip install docker-registry
+	cp config_sample.yml config.yml
+	mkdir /var/docker-registry		#创建保存数据的目录
+	sqlalchemy_index_database: _env:SQLALCHEMY_INDEX_DATABASE:sqlite:////var/docker-registry/docker-registry.db  #修改存储目录
+    启动：
+		gunicorn --access-logfile - --debug -k gevent -b 0.0.0.0:5000 -w 1 docker_registry.wsgi:application
+		mkdir -p /var/log/docker-registry
+		vi /etc/init/docker-registry.conf
+			description "Docker Registry"
+			start on runlevel [2345]
+			stop on runlevel [016]
+			respawn
+			respawn limit 10 5
+			script
+			exec gunicorn --access-logfile /var/log/docker- 
+			registry/access.log --error-logfile /var/log/docker- 
+			registry/server.log -k gevent --max-requests 100 -- 
+			graceful-timeout 3600 -t 3600 -b localhost:5000 -w 8 
+			docker_registry.wsgi:application
+			end script
+		service docker-registry start
+		apt-get -y install nginx apache2-utils
+		htpasswd -c /etc/nginx/docker-registry.htpasswd vinod1
+	配置nginx:
+		vi /etc/nginx/sites-available/docker-registry
+			upstream docker-registry {
+			server localhost:5000;
+			}
+			server {
+			 listen 8080;
+			 server_name my.docker.registry.com;
+			 # ssl on;
+			 # ssl_certificate /etc/ssl/certs/docker-registry;
+			 # ssl_certificate_key /etc/ssl/private/docker-registry;
+			 proxy_set_header Host $http_host; # required for 
+			Docker client sake
+			 proxy_set_header X-Real-IP $remote_addr; # pass on real 
+			client IP
+			 client_max_body_size 0; # disable any limits to avoid HTTP 
+			413 for large image uploads
+			 # required to avoid HTTP 411: see Issue #1486 
+			(https://github.com/dotcloud/docker/issues/1486)
+			 chunked_transfer_encoding on;
+			 location / {
+			 # let Nginx know about our auth file
+			 auth_basic "Restricted";
+			 auth_basic_user_file docker-registry.htpasswd;
+			 proxy_pass http://docker-registry;
+			 }
+			 location /_ping {
+			 auth_basic off;
+			 proxy_pass http://docker-registry;
+			 } location /v1/_ping {
+			 auth_basic off;
+			 proxy_pass http://docker-registry;
+			 }
+			}
+			ln -s /etc/nginx/sites-available/docker-registry /etc/nginx/sites-enabled/docker-registry
+			重启服务： service nginx restart
+			检测工作是否正常：
+				curl localhost:5000 "\"docker-registry server\""
+			检测nginx工作是否正常：
+				curl vinod1:vinod1@localhost:8080 "\"docker-registry server\""
+			配置nginx支持安全连接：
+				server {
+				 listen 8080;
+				 server_name mydomain.com;
+				 ssl on;
+				 ssl_certificate /etc/ssl/certs/docker-registry;
+				 ssl_certificate_key /etc/ssl/private/docker-registry;
+				创建证书目录：
+					mkdir certs && cd certs 
+				生成证书：
+					openssl genrsa -out devdockerCA.key 2048
+					openssl req -x509 -new -nodes -key devdockerCA.key -days 10000 -out devdockerCA.crt
+					openssl genrsa -out dev-docker-registry.com.key 2048
+					openssl req -new -key dev-docker-registry.com.key -out dev-docker-registry.com.csr
+					openssl x509 -req -in dev-docker-registry.com.csr -CA  devdockerCA.crt -CAkey devdockerCA.key -CAcreateserial -out dev-docker-registry.com.crt -days 10000
+					openssl x509 -req -in dev-docker-registry.com.csr -CA  devdockerCA.crt -CAkey devdockerCA.key -CAcreateserial -out dev-docker-registry.com.crt -days 10000
+					sudo update-ca-certificates
+					service nginx restart
+网络服务：
+	默认创建docker0网卡，地址是：172。16.42.1/16 地址范围：172.17.0.0 ~ 172.17.255.255
+	dockerfile 可以 导出80端口，但不会自动绑定，docker run -p 绑定
+   docker自身实现网络：
+	docker run -p 命令指定网络映射 
+		后面接格式：<Hostport>:<containerPort> | <containerPort> | <ip>:<Hostport>:<containerPort>  <ip>::<containerPort>
+  NAT实现：
+	iptales:
+	
+数据存储：
+	挂载数据存储到容器，使用 docker run -v 或 VOLUME 指定
+	挂载数据文件的三种选项：
+		-v <Container mount path>
+		-v <host path>/<container mount path>
+		-v <host path>/<container mount path>:<read write mode>
+		host path: absolute path
+		read write mode: ro(read0only),rw(read-write)
+  共享container的存储：
+	docker run -it --volume-form container1 ubuntu:latest /bin/bash 
+  避免公共的坑：
+	docker无法删除自动创建的目录
+容器连接：
+	复杂的容器架构：
+	docker run --link <container>:<alias>
+	导出三个变量：(alias:SRC)
+		NAME:  SRC_NAME
+		ENV:   SRC_ENV_SAMPLE
+		PORT:  SRC_PORT_port_protocol
+docker-compose:
+	工具，简单，架构，定义和控制多组容器服务
+	安装：
+		python安装：pip install -U docker-compose
+		wget安装：sh -c 'wget -qO-https://github.com/docker/compose/releases/download/1.2.0/docker-compose-'uname -s'-'uname -m' > /usr/local/bin/docker-compose; chmod +x /usr/local/bin/docker-compose'
+		curl安装： sh -c 'curl -sSL https://github.com/docker/compose/releases/download/1.2.0/docker-compose-'uname -s'-'uname -m' > /usr/local/bin/docker-compose; chmod +x /usr/local/bin/docker-compose'
+	检测是否安装成功：	docker-compose --version
+	默认的配置文件是：docker-compose.yaml ,可以通过 -f 参数指定
+	格式：	
+		<service>:
+			<key>:<value>
+			<key>:
+				- <value>
+				- <value>
+		key:
+			iamges, build, command, links, external_links, ports, expose, volumes, volumes_from, environment, env_file,etends,
+			net, pid, dns, cap_add, cap_drop, dns_search, working_dir, entrypoint, user, hostname, domainname, mem_limit, privileged
+			restart, stdin_open, tty, cpu_sahres,
+		docker-compose [<option>] <command> [<args>...]
+			--verbose: 显示更多的输出
+			命令：
+				build, kill, logs, port, ps, pull, rm, run, scale, start, stop, up, 
+
+Debug:
+	docker ps -l -t -a
+	docker top   #与top相等
+	docker stats CONTAINER_ID1 [CONTAINER_ID2 ]#查看容器使用的CPU, MEM,  NETWORK 
+	
+Nsenter:
+	出现问题，一般可以ssh远程调试，在主机上运行nsenter可以访问主机上的所有容器，不好
+docker exec:	
+	可以远程连接docker iamges 调试，推荐

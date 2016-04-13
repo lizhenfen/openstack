@@ -1,0 +1,27 @@
+配置：
+	# /etc/sysctl.conf
+	net.ipv4.ip_forward = 1
+	net.ipv4.conf.default.rp_filter = 0
+	net.ipv4.conf.all.rp_filter = 0
+
+	net.bridge.bridge-nf-call-ip6tables = 1
+	net.bridge.bridge-nf-call-iptables = 1
+	net.bridge.bridge-nf-call-arptables = 1
+
+命令更改：
+	sed -i "/net.ipv4.ip_forward/c\net.ipv4.ip_forward = 1" /etc/sysctl.conf
+	sed -i "/net.ipv4.conf.default.rp_filter/c\net.ipv4.conf.default.rp_filter = 0" /etc/sysctl.conf
+	sed -i -e "$a\net.ipv4.conf.all.rp_filter = 0" /etc/sysctl.conf
+	
+信息：
+	net.ipv4.conf.default.rp_filter  net.ipv4.conf.default.rp_filter 
+	在路由级别提供拒绝服务攻击的，openstack被集成到每个compute节点，使用iptables
+	reverse path filtering, a mechanism intended to prevent denial of service attacks by
+	preventing IP address spoofing at the router level. When enabled, the Linux kernel will examine
+	every packet to ensure that the source address of the packet is routable back through the
+	interface from which it came. Without this validation, a router can be used to forward malicious
+	65
+	packets from a sender who has spoofed the source address to prevent the target machine from
+	responding properly.
+命令：
+	sysctl -p

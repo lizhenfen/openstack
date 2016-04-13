@@ -1,0 +1,14 @@
+1. 安装插件
+	yum install yum-plugin-priorities  -y  #允许配置相关源RDO的优先级 在对应的repo文件中增加priority
+	#安装openstack源
+	yum install https://repos.fedorapeople.org/repos/openstack/EOL/openstack-icehouse/rdo-release-icehouse-4.noarch.rpm -y
+	#安装 Redhat 的扩展源EPEL
+	yum install http://dl.fedoraproject.org/pub/epel/6/x86_64/epel-release-6-8.noarch.rpm -y
+	#(可选)下载 阿里云的rdo,替换/etc/yum.repos.d/epel.rdo 文件，提高速度
+	cd /etc/yum.repos.d/ && wget -O /etc/yum.repos.d/epel.repo http://mirrors.aliyun.com/repo/epel-6.repo
+	
+	#安装 openstack-selinux (包含centos系统配置openstack的selnux的策略文件(policy))
+	yum install openstack-selinux -y 
+	# 升级软件
+	yum update -y 
+	yum upgrade -y 

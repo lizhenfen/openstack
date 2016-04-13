@@ -1,0 +1,16 @@
+创建实例时，错误：
+	The server has either erred or is incapable of performing the requested operation. (HTTP 500) 
+原因：
+	nova.api.openstack MessagingTimeout: Timed out waiting for a reply to message ID 
+	openstack中，有时会经常出现这种错误，原因无二，一是安全组没有设置正确，二是openstack中网络配置会有些问题或者是相关的服务没有启动。
+
+解决方法：
+	1.安全组问题在nova.conf和neutron.conf配置中涉及到SecurityGroup，一定要设置正确，如果错误的话，不仅出现这个错误，而且还有安全组不能创建。
+
+　　2.有些服务重新启动会出现Stop：Unknown instance。
+	这个错误即使你强制启动，过一会又会自动stop。我认为还是相关的neutron服务没有配置正确。细心检查，重新启动，问题应该就不大了。
+
+
+
+本次解决：
+	控制节点 的 nova.conf文件 network_api_class=nova.network.neutronv2.api.API  写错

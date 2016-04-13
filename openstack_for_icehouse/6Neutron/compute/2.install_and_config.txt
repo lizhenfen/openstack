@@ -1,0 +1,59 @@
+安装：
+	yum install openstack-neutron-ml2 openstack-neutron-openvswitch -y
+配置：
+	## 配置 keystone 认证
+	auth_strategy = keystone
+	[keystone_authtoken]
+	auth_uri = http://controller:5000
+	auth_host = controller
+	auth_port = 35357
+	auth_protocol = http
+	admin_tenant_name = service
+	admin_user = neutron
+	admin_password = neutron
+	## 配置 消息服务
+	rpc_backend = neutron.openstack.common.rpc.impl_qpid
+	qpid_hostname = controller
+	## 配置 网络插件
+	core_plugin = ml2
+	service_plugins = router
+	# 配置 ml2插件 使用 openvswitch
+	type_drivers = gre
+	tenant_network_types = gre
+	mechanism_drivers = openvswitch
+	tunnel_id_ranges = 1:1000
+	[ovs]
+	local_ip = 192.168.27.233
+	tunnel_type = gre
+	enable_tunneling = True
+	[securitygroup]
+	firewall_driver = neutron.agent.linux.iptables_firewall.OVSHybridIptablesFirewallDriver
+	enable_security_group = True
+	
+	## 配置 openvswitch
+	service openvswitch start
+	chkconfig openvswitch on
+	ovs-vsctl add-br br-int
+	
+	## 配置 compute节点的 nova服务使用 neutron
+	## controller: /etc/nova/nova.conf
+	network_api_class=nova.network.neutronv2.api.API
+	neutron_url=http://controller:9696想·
+	neutron_admin_username=neutron
+	neutron_admin_password=neutron
+	neutron_admin_tenant_name=service
+	neutron_admin_auth_url=http://controller:35357/v2.0
+	neutron_auth_strategy=keystone
+	linuxnet_interface_driver=nova.network.linux_net.LinuxOVSInterfaceDriver
+	firewall_driver=nova.virt.firewall.NoopFirewallDriver
+	security_group_api=neutron
+	
+	## 完成初始化
+	ln -s /etc/neutron/plugins/ml2/ml2_conf.ini /etc/neutron/plugin.ini
+	cp /etc/init.d/neutron-openvswitch-agent /etc/init.d/neutron-openvswitch-agent.orig
+	sed -i 's,plugins/openvswitch/ovs_neutron_plugin.ini,plugin.ini,g' /etc/init.d/neutron-openvswitch-agent
+	##重启 compute 服务
+	service openstack-nova-compute restart
+	/etc/init.d/neutron-openvswitch-agent start
+	chkconfig neutron-openvswitch-agent on
+	

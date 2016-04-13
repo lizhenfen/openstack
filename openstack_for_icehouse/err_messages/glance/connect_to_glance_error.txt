@@ -1,0 +1,12 @@
+错误： 
+	glance image-create
+		Request returned failure status.
+		Invalid OpenStack Identity credentials.
+原因：
+	请求错误，查看glance-api.conf文件 有错误
+结果：
+	和 正常文件比对后，发现输入错误，多输入了 一行 空格
+	
+提示：
+	以后尽量使用 openstack-config 命令，而不是直接修改文件，避免无法找出错误
+	

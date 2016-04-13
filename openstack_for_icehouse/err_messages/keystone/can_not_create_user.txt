@@ -1,0 +1,11 @@
+错误：
+	[root@controller ~]# keystone user-create --name admin --pass openstack --email 743564797@qq.com
+						WARNING: Bypassing authentication using a token & endpoint (authentication credentials are being ignored).
+						Unable to establish connection to http://controller:35357/v2.0/users
+原因：
+	未创建数据库 或者 访问地址(endpoint)不对
+解决;
+	1. 查看 keystone数据库是否创建
+	2. 查看OS_SERVICE_TOKEN、OS_SERVICE_ENDPOINT变量 是否正确
+	3. 可结合 日志(默认/var/log/keystone/keystone-startup.log)具体分析
+	

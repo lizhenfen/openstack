@@ -1,0 +1,56 @@
+安装：
+	yum install openstack-cinder -y
+配置：
+	# /etc/cinder/cinder.conf
+	
+	# 连接数据库
+	[database]
+	connection=mysql://cinder:cinder@controller/cinder
+	# 创建数据库
+	create database cinder;
+	grant all privileges on cinder.* to 'cinder'@'localhost' identified by 'cinder';
+	grant all privileges on cinder.* to 'cinder'@'%' identified by 'cinder';
+	
+	# 初始化 数据
+	cinder-manage db sync
+	
+	# 创建 keystone 用户
+	keystone user-create --name=cinder --pass=cinder
+	# 绑定用户 服务 和 租户
+	keystone user-role-add --user=cinder --role=admin --tenant=service
+	# 创建 服务
+	keystone service-create --name=cinder --type=volume --description="Openstack Volume"
+	keystone service-create --name=cinderv2 --type=volumev2 --description="OpenStack Cinder v2"
+	# 创建 访问点1
+	keystone endpoint-create --service=cinder \
+			--publicurl=http://controller:8776/v1/%\(tenant_id\)s \
+			--adminurl=http://controller:8776/v1/%\(tenant_id\)s \
+			--internalurl=http://controller:8776/v1/%\(tenant_id\)s
+	# 创建 访问点
+	keystone endpoint-create --service=cinderv2 \
+			--publicurl=http://controller:8776/v2/%\(tenant_id\)s \
+			--adminurl=http://controller:8776/v2/%\(tenant_id\)s \
+			--internalurl=http://controller:8776/v2/%\(tenant_id\)s
+			
+	# 配置 keystone 认证
+	auth_strategy=keystone
+	[keystone_authtoken]
+	auth_host=controller
+	auth_uri=http://controller:5000
+	auth_port=35357
+	auth_protocol=http
+	admin_user=cinder
+	admin_password=cinder
+	admin_tenant_name=service
+	
+	# 配置 消息队列 服务
+	rpc_backend=qpid
+	qpid_hostname=controller
+	
+启动：
+	service openstack-cinder-api start
+	service openstack-cinder-scheduler start
+	chkconfig openstack-cinder-api on
+	chkconfig openstack-cinder-scheduler on
+	
+	

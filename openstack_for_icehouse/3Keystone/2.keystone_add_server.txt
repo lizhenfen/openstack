@@ -1,0 +1,26 @@
+配置环境变量：
+		export OS_SERVICE_TOKEN=
+		export OS_SERVICE_ENDPOINT=http://controller:35357/v2.0
+	#验证。若结果为空，则正确
+		keystone user-list
+		
+	#创建管理员用户：
+		keystone user-create --name=admin --pass=openstack --email=743564797@qq.com
+	#创建管理员租户：
+		keystone tenant-create --name=admin
+	#创建管理员角色：
+		keystone role-create --name=admin
+	#绑定 用户和角色
+		keystone user-role-add --user=admin --tenant=admin --role=admin
+		keystone user-role-add --user=admin --tenant=admin --role=_member_
+	#创建 keystone 服务：
+		keystone service-create --name=keystone --type=identity --description="Openstack Keystone"
+	#创建 服务列表 租户	
+	keystone tenant-create --name=service
+	# 
+	#创建 keystone 访问点的API：
+	keystone endpoint-create --service=keystone \
+			--publicurl=http://controller:5000/v2.0 \
+			--adminurl=http://controller:35357/v2.0 \
+			--internalurl=http://controller:5000/v2.0
+		

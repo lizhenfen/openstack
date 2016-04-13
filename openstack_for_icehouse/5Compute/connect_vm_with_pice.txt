@@ -1,0 +1,53 @@
+http://foolishfish.blog.51cto.com/3822001/1615037
+控制节点：	
+	yum install -y spice-html5.noarch spice-server spice-client spice-protocol
+	关闭vnc服务：
+		chkconfig openstack-nova-novncproxy  off
+		chkconfig openstack-nova-spicehtml5proxy on
+		service openstack-nova-novncproxy   stop
+		service openstack-nova-spicehtml5proxy   restart
+		
+	vnc_enabled = False
+	[spice] 
+	# 
+	# Options defined in nova.spice 
+	# 
+	# Location of spice HTML5 console proxy, in the form 
+	# "http://127.0.0.1:6082/spice_auto.html" (string value) 
+	html5proxy_base_url=http://192.168.1.210:6082/spice_auto.html 
+	# IP address on which instance spice server should listen 
+	# (string value) 
+	server_listen=0.0.0.1 
+	# The address to which proxy clients (like nova- 
+	# spicehtml5proxy) should connect (string value) 
+	server_proxyclient_address=192.168.1.210 
+	# Enable spice related features (boolean value) 
+	enabled=true 
+	# Enable spice guest agent support (boolean value) 
+	agent_enabled=false 
+	# Keymap for spice (string value) 
+	keymap=en-us
+计算节点：	
+	yum install spice-server spice-protocol spice-html5
+		vnc_enabled = false
+		[spice] 
+		# 
+		# Options defined in nova.spice 
+		# 
+		# Location of spice HTML5 console proxy, in the form 
+		# "http://127.0.0.1:6082/spice_auto.html" (string value) 
+		html5proxy_base_url=http://192.168.1.210:6082/spice_auto.html 
+		# IP address on which instance spice server should listen 
+		# (string value) 
+		server_listen=0.0.0.0 
+		# The address to which proxy clients (like nova- 
+		# spicehtml5proxy) should connect (string value) 
+		server_proxyclient_address=192.168.1.213 
+		# Enable spice related features (boolean value) 
+		enabled=true 
+
+		# Enable spice guest agent support (boolean value) 
+		agent_enabled=false 
+
+		# Keymap for spice (string value) 
+		keymap=en-us

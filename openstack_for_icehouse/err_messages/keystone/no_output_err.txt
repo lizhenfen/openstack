@@ -1,0 +1,7 @@
+错误：
+	keystone user-list
+原因：
+	1.先查看日志，是否存在错误
+	2.admin环境变量错误(经常 tenant拼写错误)
+解决：
+

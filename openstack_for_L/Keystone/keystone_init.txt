@@ -1,0 +1,31 @@
+默认keystone数据库中 没有任何信息支持授权和目录服务
+	使用模板或数据库, 由于安全, 不再使用模板(temploy)
+	必须使用环境变量
+		export OS_TOKEN=   				 # --os-token
+		export OS_URL=		 			 # --os-url
+		export OS_IDENTITY_API_VERSION   # 确认API版本
+	创建目录和API	
+		openstack service create --name keystone --description "Openstack Identity" identity
+	admin API: 允许修改user、tenants  
+	public API 和 internal API 不可以
+	支持多region扩展
+	创建endpoint:
+		openstack endpoint create --region RegionOne identity public http://controller:5000/v2.0
+		openstack endpoint create --region RegionOne identity internal http://controller:5000/v2.0
+		openstack endpoint create --region RegionOne identity admin http://controller:35357/v2.0
+	每一个服务目录, 都需要创建三个endpoint API 和 一个 service
+	认证服务使用 domain, project(tenant), users, roles的联合体、
+		openstack project create --domain default --description "Admin Project" admin
+		openstack user create --domain default --password-prompt  admin
+		openstack role create admin
+		openstack role add --project admin --user admin admin  #上面的不可变(policy.json)
+		openstack project create --domain default --description "Service Project" service
+	验证操作：
+		禁止模板(由于安全)
+			vi /usr/share/keystone/keystone-dist-paste.ini
+			[pipeline:public_api] [pipeline:admin_api] and [pipeline:api_v3]
+			从上面三个段中去除 admin_token_auth
+		openstack --os-auth-url http://controller:35357/v3 --os-project-domain-id default --os-user-domain-id default --os-project-name admin --os-username admin --os-auth-type password token issue
+		
+			
+	

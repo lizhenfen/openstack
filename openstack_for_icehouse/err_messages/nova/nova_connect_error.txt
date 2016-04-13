@@ -1,0 +1,10 @@
+错误1： nova image-list 
+	ERROR: Malformed request URL: 
+	URL's project_id '(tenant_id)s' doesn't match Context's project_id 'd7714300dc464c0aa4a7afcd302967f9' (HTTP 400)
+	(Request-ID: req-bcc75271-dd33-4bfc-95bf-23fc0177ffee)
+原因： keystone endpoint-create 创建错误	
+	
+错误2：nova image-list
+	ERROR: The server has either erred or is incapable of performing the requested operation. (HTTP 500) 
+	(Request-ID: req-2bfde555-8d7d-41fc-8989-a6465d4e2e5c)
+原因：/etc/nova/nova.conf 中 glance_host 主机设置错误
